@@ -88,9 +88,9 @@ def salvar_registro(registro: RegistroCM) -> None:
 
 
 init_db()
-st.set_page_config(page_title="C&M Mobile SaaS - EPC Petrobras", page_icon="📱", layout="centered")
-st.title("📱 C&M Mobile SaaS | Registro de Campo")
-st.caption("App mobile com segregação por empresa/contrato para consolidação do RDOe")
+st.set_page_config(page_title="RDOe - Registro Diario de Ocorrências", page_icon="📱", layout="centered")
+st.title("📱 RDOe - Registro Diario de Ocorrências")
+st.caption("SRGE/SI-III/HDTON/CMUGH")
 
 st.subheader("Acesso SaaS")
 tenant = st.text_input("Empresa / Contrato (tenant)", value="petrobras-epc-a")
