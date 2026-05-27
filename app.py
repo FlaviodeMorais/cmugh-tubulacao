@@ -34,6 +34,7 @@ class RegistroCM:
     impacto_rdo: str
     observacoes: str
     evidencias: str = ""
+    chave: str = ""
 
 
 def get_conn() -> sqlite3.Connection:
@@ -59,14 +60,19 @@ def init_db() -> None:
                 status TEXT NOT NULL,
                 impacto_rdo TEXT NOT NULL,
                 observacoes TEXT,
-                evidencias TEXT DEFAULT ''
+                evidencias TEXT DEFAULT '',
+                chave TEXT DEFAULT ''
             )
             """
         )
-        try:
-            conn.execute("ALTER TABLE registros_cm ADD COLUMN evidencias TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
-            pass
+        for col, definition in [
+            ("evidencias", "TEXT DEFAULT ''"),
+            ("chave",      "TEXT DEFAULT ''"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE registros_cm ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
 
 
 def carregar_lista(tenant: str) -> List[RegistroCM]:
@@ -89,6 +95,11 @@ def img_thumb(data: bytes) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=85)
     return buf.getvalue()
+
+
+def id_registro(r) -> str:
+    data = fmt_data(r.data_registro).replace("/", "")
+    return f"RO-{r.obra}-{r.chave}-{data}-#{r.id:04d}"
 
 
 def fmt_data(iso: str) -> str:
@@ -115,7 +126,7 @@ def para_exibicao(registros: List[RegistroCM]) -> list:
 
 def exibir_cards(registros: List[RegistroCM]) -> None:
     for r in registros:
-        titulo = f"#{r.id} | {fmt_data(r.data_registro)} | {r.obra} | {r.fiscal}"
+        titulo = id_registro(r)
         with st.expander(titulo, expanded=False):
             col1, col2 = st.columns(2)
             with col1:
@@ -184,8 +195,8 @@ def salvar_registro(registro: RegistroCM) -> None:
             """
             INSERT INTO registros_cm (
                 tenant, data_registro, obra, frente_servico, disciplina, atividade,
-                equipe, fiscal, status, impacto_rdo, observacoes, evidencias
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                equipe, fiscal, status, impacto_rdo, observacoes, evidencias, chave
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 registro.tenant,
@@ -200,6 +211,7 @@ def salvar_registro(registro: RegistroCM) -> None:
                 registro.impacto_rdo,
                 registro.observacoes,
                 registro.evidencias,
+                registro.chave,
             ),
         )
 
@@ -312,6 +324,7 @@ if st.button("Salvar no list", type="primary"):
                     {"foto": base64.b64encode(f.getvalue()).decode(), "legenda": leg}
                     for f, leg in zip(fotos[:4], _legendas)
                 ]),
+                chave=fiscal_chave.strip(),
             )
         )
         st.success("Registro inserido no list com sucesso.")
@@ -367,7 +380,7 @@ def _to_word(registros, contrato: str) -> bytes:
         sec.right_margin = Cm(2)
     _cabecalho_word(doc, contrato)
     for r in registros:
-        doc.add_heading(f"#{r.id} | {fmt_data(r.data_registro)} | {r.obra} | {r.fiscal}", level=2)
+        doc.add_heading(id_registro(r), level=2)
         tabela = doc.add_table(rows=3, cols=2)
         tabela.style = "Table Grid"
         dados = [
@@ -429,7 +442,7 @@ def _to_pdf(registros, contrato: str) -> bytes:
     pdf.add_page()
     for r in registros:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 7, f"#{r.id} | {fmt_data(r.data_registro)} | {r.obra} | {r.fiscal}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 7, id_registro(r), new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "", 10)
         campos = [
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
@@ -477,10 +490,11 @@ def _to_pdf(registros, contrato: str) -> bytes:
 
 col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
 with col_exp1:
+    _n = f"#{len(lista_filtrada):04d}" if len(lista_filtrada) == 1 else f"#{len(lista_filtrada):04d}-registros"
     st.download_button(
         "⬇ Word (.docx)",
         data=_to_word(lista_filtrada, tenant),
-        file_name=f"rdoe_{tenant}.docx",
+        file_name=f"RO-{_n}.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True,
     )
@@ -488,7 +502,7 @@ with col_exp2:
     st.download_button(
         "⬇ PDF",
         data=_to_pdf(lista_filtrada, tenant),
-        file_name=f"rdoe_{tenant}.pdf",
+        file_name=f"RO-{_n}.pdf",
         mime="application/pdf",
         use_container_width=True,
     )
@@ -496,7 +510,7 @@ with col_exp3:
     st.download_button(
         "⬇ Excel (.xlsx)",
         data=_to_excel(lista_filtrada),
-        file_name=f"rdoe_consolidado_{tenant}.xlsx",
+        file_name=f"RO-{_n}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
@@ -504,7 +518,7 @@ with col_exp4:
     st.download_button(
         "⬇ JSON",
         data=json.dumps(para_exibicao(lista_filtrada), ensure_ascii=False, indent=2),
-        file_name=f"rdoe_consolidado_{tenant}.json",
+        file_name=f"RO-{_n}.json",
         mime="application/json",
         use_container_width=True,
     )
