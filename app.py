@@ -7,6 +7,11 @@ from datetime import date
 from pathlib import Path
 from typing import List
 
+import pandas as pd
+from docx import Document
+from docx.shared import Cm, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from fpdf import FPDF
 from PIL import Image
 
 import streamlit as st
@@ -332,9 +337,174 @@ if lista_filtrada:
 else:
     st.warning("Nenhum registro encontrado com os filtros atuais.")
 
-st.download_button(
-    "Exportar lista consolidada (JSON)",
-    data=json.dumps(para_exibicao(lista_filtrada), ensure_ascii=False, indent=2),
-    file_name=f"rdoe_consolidado_{tenant}.json",
-    mime="application/json",
-)
+def _to_excel(registros) -> bytes:
+    df = pd.DataFrame(para_exibicao(registros))
+    df = df.drop(columns=["id", "tenant", "evidencias"], errors="ignore")
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="RDOe")
+    return buf.getvalue()
+
+
+def _cabecalho_word(doc: Document, contrato: str) -> None:
+    t = doc.add_paragraph()
+    t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = t.add_run("RDOe - Registro Diario de Ocorrências")
+    run.bold = True
+    run.font.size = Pt(14)
+    sub = doc.add_paragraph()
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub.add_run(f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {contrato}").font.size = Pt(10)
+    doc.add_paragraph()
+
+
+def _to_word(registros, contrato: str) -> bytes:
+    doc = Document()
+    for sec in doc.sections:
+        sec.top_margin = Cm(1.5)
+        sec.bottom_margin = Cm(1.5)
+        sec.left_margin = Cm(2)
+        sec.right_margin = Cm(2)
+    _cabecalho_word(doc, contrato)
+    for r in registros:
+        doc.add_heading(f"#{r.id} | {fmt_data(r.data_registro)} | {r.obra} | {r.fiscal}", level=2)
+        tabela = doc.add_table(rows=3, cols=2)
+        tabela.style = "Table Grid"
+        dados = [
+            ("Frente de Serviço", r.frente_servico, "Equipe", r.equipe or "—"),
+            ("Disciplina", r.disciplina, "Status", r.status),
+            ("Atividade Executada", r.atividade, "Pertinência RDOe", r.impacto_rdo),
+        ]
+        for i, (l1, v1, l2, v2) in enumerate(dados):
+            tabela.cell(i, 0).text = f"{l1}: {v1}"
+            tabela.cell(i, 1).text = f"{l2}: {v2}"
+        if r.observacoes:
+            doc.add_paragraph(f"Observações: {r.observacoes}")
+        # evidências
+        items = _parse_evidencias(r.evidencias)
+        if items:
+            doc.add_paragraph("Evidências:").runs[0].bold = True
+            thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
+            for par in range(0, len(thumbs), 2):
+                tbl = doc.add_table(rows=2, cols=min(2, len(thumbs) - par))
+                for col_idx in range(tbl.columns.__len__()):
+                    thumb_data, legenda = thumbs[par + col_idx]
+                    cell = tbl.cell(0, col_idx)
+                    cell_p = cell.paragraphs[0]
+                    cell_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = cell_p.add_run()
+                    run.add_picture(io.BytesIO(thumb_data), width=Cm(6))
+                    leg_p = tbl.cell(1, col_idx).paragraphs[0]
+                    leg_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    leg_run = leg_p.add_run(legenda)
+                    leg_run.font.size = Pt(8)
+                    leg_run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+        doc.add_paragraph()
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+class _PDF(FPDF):
+    def __init__(self, contrato: str):
+        super().__init__()
+        self._contrato = contrato
+
+    def header(self):
+        self.set_font("Helvetica", "B", 12)
+        self.cell(0, 8, "RDOe - Registro Diario de Ocorrencias", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.set_font("Helvetica", "", 9)
+        self.cell(0, 6, f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {self._contrato}", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.ln(2)
+
+    def footer(self):
+        self.set_y(-12)
+        self.set_font("Helvetica", "I", 8)
+        self.cell(0, 8, f"Pag. {self.page_no()}", align="C")
+
+
+def _to_pdf(registros, contrato: str) -> bytes:
+    pdf = _PDF(contrato)
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    for r in registros:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 7, f"#{r.id} | {fmt_data(r.data_registro)} | {r.obra} | {r.fiscal}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        campos = [
+            ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
+            ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
+            ("Status", r.status), ("Pertinencia RDOe", r.impacto_rdo),
+        ]
+        for label, valor in campos:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.write(6, f"{label}: ")
+            pdf.set_font("Helvetica", "", 9)
+            pdf.write(6, valor)
+            pdf.ln(6)
+        if r.observacoes:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.write(6, "Obs: ")
+            pdf.set_font("Helvetica", "", 9)
+            pdf.write(6, r.observacoes)
+            pdf.ln(6)
+        items = _parse_evidencias(r.evidencias)
+        if items:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(0, 6, "Evidencias:", new_x="LMARGIN", new_y="NEXT")
+            thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
+            col_w = 45
+            x0 = pdf.get_x()
+            y0 = pdf.get_y()
+            for idx, (thumb_data, legenda) in enumerate(thumbs):
+                col = idx % 2
+                row = idx // 2
+                x = x0 + col * (col_w + 5)
+                y = y0 + row * (col_w + 10)
+                tmp = io.BytesIO(thumb_data)
+                pdf.image(tmp, x=x, y=y, w=col_w)
+                pdf.set_xy(x, y + col_w + 1)
+                pdf.set_font("Helvetica", "I", 7)
+                pdf.cell(col_w, 4, legenda[:30], align="C")
+            rows_used = (len(thumbs) + 1) // 2
+            pdf.set_xy(x0, y0 + rows_used * (col_w + 10))
+        pdf.ln(4)
+        pdf.set_draw_color(180, 180, 180)
+        pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 170, pdf.get_y())
+        pdf.ln(4)
+    return bytes(pdf.output())
+
+
+col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
+with col_exp1:
+    st.download_button(
+        "⬇ Word (.docx)",
+        data=_to_word(lista_filtrada, tenant),
+        file_name=f"rdoe_{tenant}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True,
+    )
+with col_exp2:
+    st.download_button(
+        "⬇ PDF",
+        data=_to_pdf(lista_filtrada, tenant),
+        file_name=f"rdoe_{tenant}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+    )
+with col_exp3:
+    st.download_button(
+        "⬇ Excel (.xlsx)",
+        data=_to_excel(lista_filtrada),
+        file_name=f"rdoe_consolidado_{tenant}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+with col_exp4:
+    st.download_button(
+        "⬇ JSON",
+        data=json.dumps(para_exibicao(lista_filtrada), ensure_ascii=False, indent=2),
+        file_name=f"rdoe_consolidado_{tenant}.json",
+        mime="application/json",
+        use_container_width=True,
+    )
