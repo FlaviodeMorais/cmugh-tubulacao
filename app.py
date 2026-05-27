@@ -18,6 +18,13 @@ import streamlit as st
 
 DB_FILE = Path("cm_saas.db")
 
+DISCIPLINAS = [
+    "Tubulação", "Dinâmicos", "Estáticos", "Civil", "Estruturas Metálicas",
+    "Elétrica", "Instrumentação", "Telecom", "Automação", "HVAC",
+    "Comissionamento", "Qualidade", "SMS", "Contratual",
+]
+
+# ─────────────────────────── DATACLASS ────────────────────────────
 
 @dataclass
 class RegistroCM:
@@ -36,6 +43,7 @@ class RegistroCM:
     evidencias: str = ""
     chave: str = ""
 
+# ─────────────────────────── BANCO DE DADOS ───────────────────────
 
 def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_FILE)
@@ -45,8 +53,7 @@ def get_conn() -> sqlite3.Connection:
 
 def init_db() -> None:
     with get_conn() as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS registros_cm (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tenant TEXT NOT NULL,
@@ -63,8 +70,31 @@ def init_db() -> None:
                 evidencias TEXT DEFAULT '',
                 chave TEXT DEFAULT ''
             )
-            """
-        )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS contratos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero TEXT UNIQUE NOT NULL,
+                senha_admin TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fiscais (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                contrato TEXT NOT NULL,
+                nome TEXT NOT NULL,
+                matricula TEXT DEFAULT '',
+                chave TEXT DEFAULT '',
+                disciplina TEXT DEFAULT ''
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS unidades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                contrato TEXT NOT NULL,
+                nome TEXT NOT NULL
+            )
+        """)
         for col, definition in [
             ("evidencias", "TEXT DEFAULT ''"),
             ("chave",      "TEXT DEFAULT ''"),
@@ -75,13 +105,105 @@ def init_db() -> None:
                 pass
 
 
+# ── contratos ──
+
+def listar_contratos() -> List[str]:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT numero FROM contratos ORDER BY numero").fetchall()
+    return [r["numero"] for r in rows]
+
+
+def criar_contrato(numero: str, senha: str) -> bool:
+    try:
+        with get_conn() as conn:
+            conn.execute("INSERT INTO contratos (numero, senha_admin) VALUES (?, ?)", (numero, senha))
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def verificar_senha(numero: str, senha: str) -> bool:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM contratos WHERE numero=? AND senha_admin=?", (numero, senha)
+        ).fetchone()
+    return row is not None
+
+
+def excluir_contrato(numero: str) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM contratos WHERE numero=?", (numero,))
+
+
+# ── fiscais ──
+
+def listar_fiscais(contrato: str) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM fiscais WHERE contrato=? ORDER BY nome", (contrato,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def adicionar_fiscal(contrato, nome, matricula, chave, disciplina) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO fiscais (contrato, nome, matricula, chave, disciplina) VALUES (?,?,?,?,?)",
+            (contrato, nome, matricula, chave, disciplina),
+        )
+
+
+def excluir_fiscal(fid: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM fiscais WHERE id=?", (fid,))
+
+
+# ── unidades ──
+
+def listar_unidades(contrato: str) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM unidades WHERE contrato=? ORDER BY nome", (contrato,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def adicionar_unidade(contrato: str, nome: str) -> None:
+    with get_conn() as conn:
+        conn.execute("INSERT INTO unidades (contrato, nome) VALUES (?,?)", (contrato, nome))
+
+
+def excluir_unidade(uid: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM unidades WHERE id=?", (uid,))
+
+
+# ── registros ──
+
 def carregar_lista(tenant: str) -> List[RegistroCM]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM registros_cm WHERE tenant = ? ORDER BY id DESC", (tenant,)
+            "SELECT * FROM registros_cm WHERE tenant=? ORDER BY id DESC", (tenant,)
         ).fetchall()
     return [RegistroCM(**dict(r)) for r in rows]
 
+
+def salvar_registro(registro: RegistroCM) -> None:
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO registros_cm (
+                tenant, data_registro, obra, frente_servico, disciplina, atividade,
+                equipe, fiscal, status, impacto_rdo, observacoes, evidencias, chave
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            registro.tenant, registro.data_registro, registro.obra,
+            registro.frente_servico, registro.disciplina, registro.atividade,
+            registro.equipe, registro.fiscal, registro.status,
+            registro.impacto_rdo, registro.observacoes,
+            registro.evidencias, registro.chave,
+        ))
+
+# ─────────────────────────── HELPERS VISUAIS ──────────────────────
 
 THUMB_SIZE = 200
 
@@ -97,11 +219,6 @@ def img_thumb(data: bytes) -> bytes:
     return buf.getvalue()
 
 
-def id_registro(r) -> str:
-    data = fmt_data(r.data_registro).replace("/", "")
-    return f"RO-{r.obra}-{r.chave}-{data}-#{r.id:04d}"
-
-
 def fmt_data(iso: str) -> str:
     try:
         a, m, d = iso.split("-")
@@ -110,55 +227,12 @@ def fmt_data(iso: str) -> str:
         return iso
 
 
-def para_exibicao(registros: List[RegistroCM]) -> list:
-    rows = []
-    for r in registros:
-        d = asdict(r)
-        d["data_registro"] = fmt_data(d["data_registro"])
-        try:
-            n = len(json.loads(d.get("evidencias") or "[]"))
-        except Exception:
-            n = 0
-        d["evidencias"] = f"{n} foto(s)" if n else ""
-        rows.append(d)
-    return rows
-
-
-def exibir_cards(registros: List[RegistroCM]) -> None:
-    for r in registros:
-        titulo = id_registro(r)
-        with st.expander(titulo, expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f"**Frente:** {r.frente_servico}")
-                st.markdown(f"**Disciplina:** {r.disciplina}")
-                st.markdown(f"**Atividade:** {r.atividade}")
-            with col2:
-                st.markdown(f"**Equipe:** {r.equipe or '—'}")
-                st.markdown(f"**Status:** {r.status}")
-                st.markdown(f"**Pertinência RDOe:** {r.impacto_rdo}")
-            if r.observacoes:
-                st.markdown(f"**Obs:** {r.observacoes}")
-            exibir_grid_evidencias(r.evidencias)
-
-
-def _img_centralizada(data: bytes, legenda: str = "") -> None:
-    b64 = base64.b64encode(data).decode()
-    cap = (
-        f'<p style="text-align:center;font-size:0.78em;color:#aaa;margin:4px 0 8px">{legenda}</p>'
-        if legenda else ""
-    )
-    st.markdown(
-        f'<div style="display:flex;flex-direction:column;align-items:center">'
-        f'<img src="data:image/jpeg;base64,{b64}" width="{THUMB_SIZE}">'
-        f'{cap}'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+def id_registro(r) -> str:
+    data = fmt_data(r.data_registro).replace("/", "")
+    return f"RO-{r.obra}-{r.chave}-{data}-{r.id:04d}"
 
 
 def _parse_evidencias(evidencias_json: str) -> list:
-    """Retorna lista de dicts {foto: bytes, legenda: str}, compatível com formato antigo."""
     try:
         items = json.loads(evidencias_json)
     except Exception:
@@ -170,6 +244,20 @@ def _parse_evidencias(evidencias_json: str) -> list:
         else:
             result.append({"foto": base64.b64decode(item), "legenda": ""})
     return result
+
+
+def _img_centralizada(data: bytes, legenda: str = "") -> None:
+    b64 = base64.b64encode(data).decode()
+    cap = (
+        f'<p style="text-align:center;font-size:0.78em;color:#aaa;margin:4px 0 8px">{legenda}</p>'
+        if legenda else ""
+    )
+    st.markdown(
+        f'<div style="display:flex;flex-direction:column;align-items:center">'
+        f'<img src="data:image/jpeg;base64,{b64}" width="{THUMB_SIZE}">'
+        f'{cap}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def exibir_grid_evidencias(evidencias_json: str) -> None:
@@ -189,166 +277,37 @@ def exibir_grid_evidencias(evidencias_json: str) -> None:
                     _img_centralizada(thumbs[img_idx]["t"], thumbs[img_idx]["l"])
 
 
-def salvar_registro(registro: RegistroCM) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            """
-            INSERT INTO registros_cm (
-                tenant, data_registro, obra, frente_servico, disciplina, atividade,
-                equipe, fiscal, status, impacto_rdo, observacoes, evidencias, chave
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                registro.tenant,
-                registro.data_registro,
-                registro.obra,
-                registro.frente_servico,
-                registro.disciplina,
-                registro.atividade,
-                registro.equipe,
-                registro.fiscal,
-                registro.status,
-                registro.impacto_rdo,
-                registro.observacoes,
-                registro.evidencias,
-                registro.chave,
-            ),
-        )
+def para_exibicao(registros: List[RegistroCM]) -> list:
+    rows = []
+    for r in registros:
+        d = asdict(r)
+        d["data_registro"] = fmt_data(d["data_registro"])
+        try:
+            n = len(json.loads(d.get("evidencias") or "[]"))
+        except Exception:
+            n = 0
+        d["evidencias"] = f"{n} foto(s)" if n else ""
+        rows.append(d)
+    return rows
 
 
-init_db()
-st.set_page_config(page_title="RDOe - Registro Diario de Ocorrências", page_icon="📱", layout="centered")
-st.markdown(
-    '<h1 style="font-size:1.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-    '📱 RDOe - Registro Diario de Ocorrências</h1>',
-    unsafe_allow_html=True,
-)
-st.caption("SRGE/SI-III/HDTON/CMUGH")
+def exibir_cards(registros: List[RegistroCM]) -> None:
+    for r in registros:
+        with st.expander(id_registro(r), expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**Frente:** {r.frente_servico}")
+                st.markdown(f"**Disciplina:** {r.disciplina}")
+                st.markdown(f"**Atividade:** {r.atividade}")
+            with col2:
+                st.markdown(f"**Equipe:** {r.equipe or '—'}")
+                st.markdown(f"**Status:** {r.status}")
+                st.markdown(f"**Pertinência RDOe:** {r.impacto_rdo}")
+            if r.observacoes:
+                st.markdown(f"**Obs:** {r.observacoes}")
+            exibir_grid_evidencias(r.evidencias)
 
-st.subheader("Contrato nº.:")
-tenant = st.text_input("", placeholder="Nº do contrato / Nome da empresa")
-if not tenant.strip():
-    st.warning("Informe o número do contrato ou nome da empresa para acessar os dados.")
-    st.stop()
-
-tenant = tenant.strip().lower()
-lista_registros = carregar_lista(tenant)
-
-st.subheader("1) Fiscalização de Campo")
-col_nome, col_mat = st.columns([3, 2])
-with col_nome:
-    fiscal_nome = st.text_input("Nome do Fiscal de Campo", key="fiscal_nome")
-with col_mat:
-    fiscal_matricula = st.text_input("Matrícula", key="fiscal_matricula")
-col_chave, col_disc_fiscal = st.columns([2, 3])
-with col_chave:
-    fiscal_chave = st.text_input("Chave", key="fiscal_chave")
-with col_disc_fiscal:
-    fiscal_disciplina = st.selectbox(
-        "Disciplina",
-        ["Tubulação", "Dinâmicos", "Estáticos", "Civil", "Estruturas Metálicas", "Elétrica", "Instrumentação", "Telecom", "Automação", "HVAC", "Comissionamento", "Qualidade", "SMS", "Contratual"],
-        key="fiscal_disciplina",
-    )
-
-st.subheader("2) Registros RDOe")
-
-if "fk" not in st.session_state:
-    st.session_state.fk = 0
-fk = st.session_state.fk
-
-col_unidade, col_data = st.columns([4, 1])
-with col_unidade:
-    obra = st.text_input("Unidade", key=f"obra_{fk}")
-with col_data:
-    data_registro = st.date_input("Data", value=date.today(), format="DD/MM/YYYY", key=f"data_{fk}")
-
-col_frente, col_disciplina = st.columns([3, 2])
-with col_frente:
-    frente_servico = st.text_input("Frente de serviço", key=f"frente_{fk}")
-with col_disciplina:
-    disciplina = st.selectbox("Disciplina", ["Tubulação", "Dinâmicos", "Estáticos", "Civil", "Estruturas Metálicas", "Elétrica", "Instrumentação", "Telecom", "Automação", "HVAC", "Comissionamento", "Qualidade", "SMS", "Contratual"], key=f"disc_{fk}")
-
-atividade = st.text_area("Atividade Executada", key=f"ativ_{fk}")
-
-fotos = st.file_uploader(
-    "Evidências (máx. 4 fotos)",
-    type=["jpg", "jpeg", "png", "webp"],
-    accept_multiple_files=True,
-    key=f"fotos_{fk}",
-)
-if len(fotos) > 4:
-    st.warning("Apenas as 4 primeiras fotos serão consideradas.")
-    fotos = fotos[:4]
-_legendas: list[str] = []
-if fotos:
-    _thumbs = [img_thumb(f.getvalue()) for f in fotos]
-    if len(_thumbs) == 1:
-        _img_centralizada(_thumbs[0])
-        _legendas.append(st.text_input("Legenda", key=f"cap_0_{fk}", placeholder="Descrição da evidência", label_visibility="collapsed"))
-    else:
-        for _i in range(0, len(_thumbs), 2):
-            _cols = st.columns(2)
-            for _j in range(2):
-                _idx = _i + _j
-                if _idx < len(_thumbs):
-                    with _cols[_j]:
-                        _img_centralizada(_thumbs[_idx])
-                        _legendas.append(st.text_input("Legenda", key=f"cap_{_idx}_{fk}", placeholder="Descrição da evidência", label_visibility="collapsed"))
-
-equipe = st.text_input("Equipe / empreiteira", key=f"equipe_{fk}")
-fiscal = fiscal_nome
-status = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
-impacto_rdo = st.selectbox("Pertinência para RDOe", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
-observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
-
-if st.button("Salvar no list", type="primary"):
-    obrigatorios = [obra.strip(), frente_servico.strip(), atividade.strip(), fiscal.strip()]
-    if not all(obrigatorios):
-        st.error("Preencha os campos obrigatórios: obra, frente, atividade e fiscal.")
-    else:
-        salvar_registro(
-            RegistroCM(
-                id=0,
-                tenant=tenant,
-                data_registro=data_registro.isoformat(),
-                obra=obra.strip(),
-                frente_servico=frente_servico.strip(),
-                disciplina=disciplina,
-                atividade=atividade.strip(),
-                equipe=equipe.strip(),
-                fiscal=fiscal.strip(),
-                status=status,
-                impacto_rdo=impacto_rdo,
-                observacoes=observacoes.strip(),
-                evidencias=json.dumps([
-                    {"foto": base64.b64encode(f.getvalue()).decode(), "legenda": leg}
-                    for f, leg in zip(fotos[:4], _legendas)
-                ]),
-                chave=fiscal_chave.strip(),
-            )
-        )
-        st.success("Registro inserido no list com sucesso.")
-        st.session_state.fk += 1
-        st.rerun()
-
-st.subheader("3) Consolidação do fiscal para RDOe")
-filtro_obra = st.text_input("Filtrar por obra")
-filtro_impacto = st.multiselect("Filtrar pertinência", ["Alta", "Média", "Baixa"], default=["Alta", "Média"])
-filtro_status = st.multiselect("Filtrar status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], default=["Executado", "Em andamento", "Bloqueado"])
-
-lista_filtrada = lista_registros
-if filtro_obra.strip():
-    lista_filtrada = [item for item in lista_filtrada if filtro_obra.lower() in item.obra.lower()]
-if filtro_impacto:
-    lista_filtrada = [item for item in lista_filtrada if item.impacto_rdo in filtro_impacto]
-if filtro_status:
-    lista_filtrada = [item for item in lista_filtrada if item.status in filtro_status]
-
-st.metric("Registros pertinentes para RDOe", len(lista_filtrada))
-if lista_filtrada:
-    exibir_cards(lista_filtrada)
-else:
-    st.warning("Nenhum registro encontrado com os filtros atuais.")
+# ─────────────────────────── EXPORTAÇÕES ──────────────────────────
 
 def _to_excel(registros) -> bytes:
     df = pd.DataFrame(para_exibicao(registros))
@@ -361,12 +320,10 @@ def _to_excel(registros) -> bytes:
 
 def _cabecalho_word(doc: Document, contrato: str) -> None:
     t = doc.add_paragraph()
-    t.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = t.add_run("RDOe - Registro Diario de Ocorrências")
+    run = t.add_run("RO - Registro de Ocorrências")
     run.bold = True
     run.font.size = Pt(14)
     sub = doc.add_paragraph()
-    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     sub.add_run(f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {contrato}").font.size = Pt(10)
     doc.add_paragraph()
 
@@ -393,22 +350,17 @@ def _to_word(registros, contrato: str) -> bytes:
             tabela.cell(i, 1).text = f"{l2}: {v2}"
         if r.observacoes:
             doc.add_paragraph(f"Observações: {r.observacoes}")
-        # evidências
         items = _parse_evidencias(r.evidencias)
         if items:
             doc.add_paragraph("Evidências:").runs[0].bold = True
             thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
             for par in range(0, len(thumbs), 2):
                 tbl = doc.add_table(rows=2, cols=min(2, len(thumbs) - par))
-                for col_idx in range(tbl.columns.__len__()):
+                for col_idx in range(len(tbl.columns)):
                     thumb_data, legenda = thumbs[par + col_idx]
-                    cell = tbl.cell(0, col_idx)
-                    cell_p = cell.paragraphs[0]
-                    cell_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = cell_p.add_run()
-                    run.add_picture(io.BytesIO(thumb_data), width=Cm(6))
+                    cell_p = tbl.cell(0, col_idx).paragraphs[0]
+                    cell_p.add_run().add_picture(io.BytesIO(thumb_data), width=Cm(6))
                     leg_p = tbl.cell(1, col_idx).paragraphs[0]
-                    leg_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     leg_run = leg_p.add_run(legenda)
                     leg_run.font.size = Pt(8)
                     leg_run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
@@ -425,9 +377,9 @@ class _PDF(FPDF):
 
     def header(self):
         self.set_font("Helvetica", "B", 12)
-        self.cell(0, 8, "RDOe - Registro Diario de Ocorrencias", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 8, "RO - Registro de Ocorrencias", align="L", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "", 9)
-        self.cell(0, 6, f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {self._contrato}", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 6, f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {self._contrato}", align="L", new_x="LMARGIN", new_y="NEXT")
         self.ln(2)
 
     def footer(self):
@@ -443,13 +395,11 @@ def _to_pdf(registros, contrato: str) -> bytes:
     for r in registros:
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 7, id_registro(r), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 10)
-        campos = [
+        for label, valor in [
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
             ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
             ("Status", r.status), ("Pertinencia RDOe", r.impacto_rdo),
-        ]
-        for label, valor in campos:
+        ]:
             pdf.set_font("Helvetica", "B", 9)
             pdf.write(6, f"{label}: ")
             pdf.set_font("Helvetica", "", 9)
@@ -467,15 +417,12 @@ def _to_pdf(registros, contrato: str) -> bytes:
             pdf.cell(0, 6, "Evidencias:", new_x="LMARGIN", new_y="NEXT")
             thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
             col_w = 45
-            x0 = pdf.get_x()
-            y0 = pdf.get_y()
+            x0, y0 = pdf.get_x(), pdf.get_y()
             for idx, (thumb_data, legenda) in enumerate(thumbs):
-                col = idx % 2
-                row = idx // 2
+                col, row = idx % 2, idx // 2
                 x = x0 + col * (col_w + 5)
                 y = y0 + row * (col_w + 10)
-                tmp = io.BytesIO(thumb_data)
-                pdf.image(tmp, x=x, y=y, w=col_w)
+                pdf.image(io.BytesIO(thumb_data), x=x, y=y, w=col_w)
                 pdf.set_xy(x, y + col_w + 1)
                 pdf.set_font("Helvetica", "I", 7)
                 pdf.cell(col_w, 4, legenda[:30], align="C")
@@ -487,38 +434,274 @@ def _to_pdf(registros, contrato: str) -> bytes:
         pdf.ln(4)
     return bytes(pdf.output())
 
+# ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
+init_db()
+st.set_page_config(page_title="RO - Registro de Ocorrências", page_icon="📱", layout="centered")
+
+# ─────────────────────────── SIDEBAR ADMIN ────────────────────────
+
+if "admin_contrato" not in st.session_state:
+    st.session_state.admin_contrato = None
+
+with st.sidebar:
+    st.markdown("### Área Admin")
+
+    if st.session_state.admin_contrato:
+        contrato_admin = st.session_state.admin_contrato
+        st.success(f"Contrato: **{contrato_admin}**")
+        if st.button("Sair", key="admin_sair"):
+            st.session_state.admin_contrato = None
+            st.rerun()
+
+        tab_f, tab_u = st.tabs(["Fiscais", "Unidades"])
+
+        # ── Fiscais ──
+        with tab_f:
+            st.markdown("**Cadastrar Fiscal**")
+            with st.form("form_fiscal"):
+                f_nome = st.text_input("Nome do Fiscal de Campo")
+                f_mat  = st.text_input("Matrícula")
+                f_chave = st.text_input("Chave")
+                f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
+                if st.form_submit_button("Adicionar"):
+                    if f_nome.strip():
+                        adicionar_fiscal(contrato_admin, f_nome.strip(), f_mat.strip(), f_chave.strip(), f_disc)
+                        st.success("Fiscal adicionado.")
+                        st.rerun()
+                    else:
+                        st.error("Informe o nome do fiscal.")
+
+            st.markdown("**Fiscais cadastrados**")
+            for fiscal in listar_fiscais(contrato_admin):
+                c1, c2 = st.columns([4, 1])
+                c1.write(f"{fiscal['nome']} | {fiscal['chave']}")
+                if c2.button("🗑", key=f"del_f_{fiscal['id']}"):
+                    excluir_fiscal(fiscal["id"])
+                    st.rerun()
+
+        # ── Unidades ──
+        with tab_u:
+            st.markdown("**Cadastrar Unidade**")
+            with st.form("form_unidade"):
+                u_nome = st.text_input("Nome da Unidade")
+                if st.form_submit_button("Adicionar"):
+                    if u_nome.strip():
+                        adicionar_unidade(contrato_admin, u_nome.strip())
+                        st.success("Unidade adicionada.")
+                        st.rerun()
+                    else:
+                        st.error("Informe o nome da unidade.")
+
+            st.markdown("**Unidades cadastradas**")
+            for unidade in listar_unidades(contrato_admin):
+                c1, c2 = st.columns([4, 1])
+                c1.write(unidade["nome"])
+                if c2.button("🗑", key=f"del_u_{unidade['id']}"):
+                    excluir_unidade(unidade["id"])
+                    st.rerun()
+
+    else:
+        st.markdown("**Login**")
+        with st.form("admin_login"):
+            _num   = st.text_input("Nº do Contrato")
+            _senha = st.text_input("Senha", type="password")
+            _novo  = st.checkbox("Cadastrar novo contrato")
+            if st.form_submit_button("Entrar"):
+                if not _num.strip() or not _senha.strip():
+                    st.error("Preencha contrato e senha.")
+                elif _novo:
+                    if criar_contrato(_num.strip(), _senha.strip()):
+                        st.session_state.admin_contrato = _num.strip()
+                        st.rerun()
+                    else:
+                        st.error("Contrato já existe. Faça login sem marcar 'Cadastrar'.")
+                else:
+                    if verificar_senha(_num.strip(), _senha.strip()):
+                        st.session_state.admin_contrato = _num.strip()
+                        st.rerun()
+                    else:
+                        st.error("Contrato ou senha inválidos.")
+
+# ─────────────────────────── CABEÇALHO ───────────────────────────
+
+st.markdown(
+    '<h1 style="font-size:1.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+    '📱 RO - Registro de Ocorrências</h1>',
+    unsafe_allow_html=True,
+)
+st.caption("SRGE/SI-III/HDTON/CMUGH")
+
+# ─────────────────────────── SELEÇÃO DE CONTRATO ─────────────────
+
+st.subheader("Contrato nº.:")
+contratos_disponiveis = listar_contratos()
+
+if contratos_disponiveis:
+    tenant = st.selectbox("", contratos_disponiveis, label_visibility="collapsed")
+else:
+    tenant = st.text_input("", placeholder="Nº do contrato (solicite ao admin o cadastro)")
+    if not tenant.strip():
+        st.warning("Nenhum contrato cadastrado. Acesse a Área Admin no menu lateral para cadastrar.")
+        st.stop()
+    tenant = tenant.strip()
+
+lista_registros = carregar_lista(tenant)
+
+# ─────────────────────────── 1) FISCALIZAÇÃO DE CAMPO ───────────
+
+st.subheader("1) Fiscalização de Campo")
+
+fiscais_disponiveis = listar_fiscais(tenant)
+fiscal_selecionado  = {}
+
+if fiscais_disponiveis:
+    nomes = [f["nome"] for f in fiscais_disponiveis]
+    nome_escolhido = st.selectbox("Nome do Fiscal de Campo", nomes, key="sel_fiscal")
+    fiscal_selecionado = next((f for f in fiscais_disponiveis if f["nome"] == nome_escolhido), {})
+    col_mat, col_chave, col_disc_f = st.columns(3)
+    col_mat.text_input("Matrícula",   value=fiscal_selecionado.get("matricula", ""), disabled=True, key="mat_ro")
+    col_chave.text_input("Chave",     value=fiscal_selecionado.get("chave", ""),     disabled=True, key="chave_ro")
+    col_disc_f.text_input("Disciplina", value=fiscal_selecionado.get("disciplina", ""), disabled=True, key="disc_ro")
+else:
+    st.info("Nenhum fiscal cadastrado para este contrato. Solicite ao admin.")
+    col_nome, col_mat = st.columns([3, 2])
+    with col_nome:
+        fiscal_selecionado["nome"] = st.text_input("Nome do Fiscal de Campo", key="fiscal_nome_livre")
+    with col_mat:
+        fiscal_selecionado["matricula"] = st.text_input("Matrícula", key="fiscal_mat_livre")
+    col_chave, col_disc_f = st.columns([2, 3])
+    with col_chave:
+        fiscal_selecionado["chave"] = st.text_input("Chave", key="fiscal_chave_livre")
+    with col_disc_f:
+        fiscal_selecionado["disciplina"] = st.selectbox("Disciplina", DISCIPLINAS, key="fiscal_disc_livre")
+
+fiscal_nome  = fiscal_selecionado.get("nome", "")
+fiscal_chave = fiscal_selecionado.get("chave", "")
+
+# ─────────────────────────── 2) REGISTROS RDOe ───────────────────
+
+st.subheader("2) Registros RDOe")
+
+if "fk" not in st.session_state:
+    st.session_state.fk = 0
+fk = st.session_state.fk
+
+# Unidade
+unidades_disponiveis = [u["nome"] for u in listar_unidades(tenant)]
+col_unidade, col_data = st.columns([4, 1])
+with col_unidade:
+    if unidades_disponiveis:
+        obra = st.selectbox("Unidade", unidades_disponiveis, key=f"obra_{fk}")
+    else:
+        obra = st.text_input("Unidade", key=f"obra_{fk}")
+with col_data:
+    data_registro = st.date_input("Data", value=date.today(), format="DD/MM/YYYY", key=f"data_{fk}")
+
+col_frente, col_disciplina = st.columns([3, 2])
+with col_frente:
+    frente_servico = st.text_input("Frente de serviço", key=f"frente_{fk}")
+with col_disciplina:
+    disciplina = st.selectbox("Disciplina", DISCIPLINAS, key=f"disc_{fk}")
+
+atividade = st.text_area("Atividade Executada", key=f"ativ_{fk}")
+
+fotos = st.file_uploader(
+    "Evidências (máx. 4 fotos)",
+    type=["jpg", "jpeg", "png", "webp"],
+    accept_multiple_files=True,
+    key=f"fotos_{fk}",
+)
+if len(fotos) > 4:
+    st.warning("Apenas as 4 primeiras fotos serão consideradas.")
+    fotos = fotos[:4]
+
+_legendas: list[str] = []
+if fotos:
+    _thumbs = [img_thumb(f.getvalue()) for f in fotos]
+    if len(_thumbs) == 1:
+        _img_centralizada(_thumbs[0])
+        _legendas.append(st.text_input("Legenda", key=f"cap_0_{fk}", placeholder="Descrição da evidência", label_visibility="collapsed"))
+    else:
+        for _i in range(0, len(_thumbs), 2):
+            _cols = st.columns(2)
+            for _j in range(2):
+                _idx = _i + _j
+                if _idx < len(_thumbs):
+                    with _cols[_j]:
+                        _img_centralizada(_thumbs[_idx])
+                        _legendas.append(st.text_input("Legenda", key=f"cap_{_idx}_{fk}", placeholder="Descrição da evidência", label_visibility="collapsed"))
+
+equipe    = st.text_input("Equipe / empreiteira", key=f"equipe_{fk}")
+status    = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
+impacto_rdo = st.selectbox("Pertinência para RDOe", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
+observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
+
+if st.button("Salvar no list", type="primary"):
+    obrigatorios = [str(obra).strip(), frente_servico.strip(), atividade.strip(), fiscal_nome.strip()]
+    if not all(obrigatorios):
+        st.error("Preencha os campos obrigatórios: unidade, frente, atividade e fiscal.")
+    else:
+        salvar_registro(RegistroCM(
+            id=0,
+            tenant=tenant,
+            data_registro=data_registro.isoformat(),
+            obra=str(obra).strip(),
+            frente_servico=frente_servico.strip(),
+            disciplina=disciplina,
+            atividade=atividade.strip(),
+            equipe=equipe.strip(),
+            fiscal=fiscal_nome.strip(),
+            status=status,
+            impacto_rdo=impacto_rdo,
+            observacoes=observacoes.strip(),
+            evidencias=json.dumps([
+                {"foto": base64.b64encode(f.getvalue()).decode(), "legenda": leg}
+                for f, leg in zip(fotos[:4], _legendas)
+            ]),
+            chave=fiscal_chave.strip(),
+        ))
+        st.success("Registro inserido com sucesso.")
+        st.session_state.fk += 1
+        st.rerun()
+
+# ─────────────────────────── 3) CONSOLIDAÇÃO ─────────────────────
+
+st.subheader("3) Consolidação do fiscal para RDOe")
+filtro_obra    = st.text_input("Filtrar por unidade")
+filtro_impacto = st.multiselect("Filtrar pertinência", ["Alta", "Média", "Baixa"], default=["Alta", "Média"])
+filtro_status  = st.multiselect("Filtrar status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], default=["Executado", "Em andamento", "Bloqueado"])
+
+lista_filtrada = lista_registros
+if filtro_obra.strip():
+    lista_filtrada = [r for r in lista_filtrada if filtro_obra.lower() in r.obra.lower()]
+if filtro_impacto:
+    lista_filtrada = [r for r in lista_filtrada if r.impacto_rdo in filtro_impacto]
+if filtro_status:
+    lista_filtrada = [r for r in lista_filtrada if r.status in filtro_status]
+
+st.metric("Registros pertinentes para RDOe", len(lista_filtrada))
+if lista_filtrada:
+    exibir_cards(lista_filtrada)
+else:
+    st.warning("Nenhum registro encontrado com os filtros atuais.")
+
+_n = f"{lista_filtrada[0].id:04d}" if len(lista_filtrada) == 1 else f"{len(lista_filtrada):04d}-registros"
 col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
 with col_exp1:
-    _n = f"#{len(lista_filtrada):04d}" if len(lista_filtrada) == 1 else f"#{len(lista_filtrada):04d}-registros"
-    st.download_button(
-        "⬇ Word (.docx)",
-        data=_to_word(lista_filtrada, tenant),
+    st.download_button("⬇ Word (.docx)", data=_to_word(lista_filtrada, tenant),
         file_name=f"RO-{_n}.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True,
-    )
+        use_container_width=True)
 with col_exp2:
-    st.download_button(
-        "⬇ PDF",
-        data=_to_pdf(lista_filtrada, tenant),
-        file_name=f"RO-{_n}.pdf",
-        mime="application/pdf",
-        use_container_width=True,
-    )
+    st.download_button("⬇ PDF", data=_to_pdf(lista_filtrada, tenant),
+        file_name=f"RO-{_n}.pdf", mime="application/pdf", use_container_width=True)
 with col_exp3:
-    st.download_button(
-        "⬇ Excel (.xlsx)",
-        data=_to_excel(lista_filtrada),
+    st.download_button("⬇ Excel (.xlsx)", data=_to_excel(lista_filtrada),
         file_name=f"RO-{_n}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
-    )
+        use_container_width=True)
 with col_exp4:
-    st.download_button(
-        "⬇ JSON",
+    st.download_button("⬇ JSON",
         data=json.dumps(para_exibicao(lista_filtrada), ensure_ascii=False, indent=2),
-        file_name=f"RO-{_n}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+        file_name=f"RO-{_n}.json", mime="application/json", use_container_width=True)
