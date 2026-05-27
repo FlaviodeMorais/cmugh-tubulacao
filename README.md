@@ -1,22 +1,20 @@
-# C&M Mobile para Obras EPC Petrobras
+# C&M Mobile SaaS para Obras EPC Petrobras
 
-Aplicativo em Streamlit com foco **mobile** para registrar informações de campo e apoiar a consolidação do **RDOe** pelo fiscal.
+Sim — o app pode ser utilizado em modelo **SaaS**.
 
-## Fluxo solicitado
+## O que foi adaptado para SaaS
 
-1. Existe um **list** (`lista_registros`) que armazena todas as informações.
-2. O time preenche um **formulário mobile**.
-3. Ao enviar, os dados entram automaticamente no **list**.
-4. O fiscal acessa o **list**, aplica filtros de pertinência e consolida o que deve entrar no RDOe.
+- Armazenamento em SQLite (`cm_saas.db`) em vez de lista apenas em sessão/JSON.
+- Campo de acesso por **tenant** (empresa/contrato), separando os dados por cliente.
+- O formulário insere automaticamente no **list do tenant**.
+- O fiscal acessa o list do tenant, filtra e consolida os itens para o **RDOe**.
 
-## Funcionalidades
+## Fluxo
 
-- Interface em layout centralizado para uso mobile.
-- Formulário de registro com obra, frente, disciplina, atividade, equipe, fiscal, status e pertinência para RDOe.
-- Lista base visível no app.
-- Painel de consolidação com filtros por obra, status e pertinência.
-- Exportação da lista consolidada em JSON.
-- Persistência local em `tarefas_cm.json`.
+1. Informar tenant na tela de acesso.
+2. Equipe preenche formulário mobile.
+3. Registro entra automaticamente no list do tenant.
+4. Fiscal filtra pertinência/status/obra e exporta consolidado do RDOe.
 
 ## Execução
 
@@ -26,3 +24,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+## Publicação SaaS (sugestão)
+
+- Hospedar em Streamlit Community Cloud, AWS, Azure ou GCP.
+- Para produção multiusuário robusta, trocar SQLite por Postgres gerenciado.
