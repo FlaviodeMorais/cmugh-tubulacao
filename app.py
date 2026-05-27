@@ -145,7 +145,6 @@ with st.form("form_registro_mobile", clear_on_submit=True):
                 )
             )
             st.success("Registro inserido no list com sucesso.")
-            st.rerun()
 
 st.subheader("3) Consolidação do fiscal para RDOe")
 filtro_obra = st.text_input("Filtrar por obra")
