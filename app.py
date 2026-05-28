@@ -664,15 +664,9 @@ button[kind="primary"] p {
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
 
-/* Botão gear oculto — acesso via JS a partir do header HTML */
-button[title="Configurações / Admin"] {
-    position: fixed !important;
-    left: -9999px !important;
-    top: -9999px !important;
-    width: 1px !important;
-    height: 1px !important;
-    opacity: 0.001 !important;
-    pointer-events: none !important;
+/* Container do botão gear completamente oculto — JS do header o aciona via dispatchEvent */
+div[data-testid="stButton"]:has(button[title="Configurações / Admin"]) {
+    display: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -748,7 +742,7 @@ st.markdown(f"""
   <button id="hdr-admin-btn"
     onclick="(function(){{
       var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
-      if(b){{b.style.pointerEvents='auto';b.click();b.style.pointerEvents='none';}}
+      if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
     }})()"
     style="position:absolute;top:10px;right:12px;z-index:2;
            background:rgba(0,0,0,0.40);color:#fff;border:none;
