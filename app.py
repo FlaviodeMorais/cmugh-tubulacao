@@ -519,12 +519,28 @@ input, textarea, select,
     border-color: #E0E0E0 !important;
 }
 
-/* botões */
+/* botões gerais */
 button[kind="secondary"], button[data-testid="baseButton-secondary"] {
     background-color: #F0F0F0 !important;
     color: #0D0D0D !important;
     border-color: #CCCCCC !important;
 }
+
+/* botão de menu — só ícone, sem caixa */
+.icon-btn button,
+.icon-btn button:hover,
+.icon-btn button:focus,
+.icon-btn button:active {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #0D0D0D !important;
+    font-size: 1.3rem !important;
+    padding: 0 !important;
+    min-height: unset !important;
+    line-height: 1 !important;
+}
+.icon-btn button:hover { opacity: 0.6 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -597,8 +613,8 @@ col_titulo, col_gear = st.columns([11, 1])
 with col_titulo:
     _titulo_placeholder = st.empty()
 with col_gear:
-    st.markdown("<div style='padding-top:4px'>", unsafe_allow_html=True)
-    if st.button("⚙️", help="Configurações / Admin", key="btn_gear"):
+    st.markdown("<div class='icon-btn' style='padding-top:6px;text-align:right'>", unsafe_allow_html=True)
+    if st.button("☰", help="Configurações / Admin", key="btn_gear"):
         st.session_state.show_admin = not st.session_state.show_admin
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -746,9 +762,11 @@ lista_registros = carregar_lista(tenant)
 _empreendimento = obter_identificador(tenant)
 _emp = (_empreendimento or "SRGE/SI-III/HDTON/CMUGH").upper()
 _titulo_placeholder.markdown(
-    f'<h1 style="font-size:1.5rem;margin:0;color:#0D0D0D;white-space:nowrap;'
-    f'overflow:hidden;text-overflow:ellipsis;text-transform:uppercase">'
-    f'{_emp}&nbsp;&nbsp;|&nbsp;&nbsp;RO - REGISTRO DE OCORRÊNCIAS</h1>',
+    f'<p style="font-size:1.1rem;font-weight:700;letter-spacing:0.03em;margin:0;'
+    f'color:#0D0D0D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+    f'{_emp}'
+    f'<span style="font-weight:300;margin:0 10px;color:#888">|</span>'
+    f'RO - REGISTRO DE OCORRÊNCIAS</p>',
     unsafe_allow_html=True,
 )
 
