@@ -728,7 +728,7 @@ _banner_img = (
 )
 _logo_img = (
     f'<img src="data:image/{_logo_mime};base64,{_logo_data}" '
-    f'style="height:42px;object-fit:contain;display:block">'
+    f'style="height:34px;object-fit:contain;display:block">'
     if _logo_data else ""
 )
 
