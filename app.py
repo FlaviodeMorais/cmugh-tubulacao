@@ -68,31 +68,76 @@ def _headers(prefer_rep: bool = False) -> dict:
         h["Prefer"] = "return=representation"
     return h
 
+class _SupabaseError(Exception):
+    pass
+
+
+def _handle_request_error(e: Exception) -> None:
+    if isinstance(e, requests.exceptions.Timeout):
+        msg = ("⏱️ **Tempo limite excedido ao conectar com o banco de dados.**\n\n"
+               "O projeto Supabase pode estar **pausado** (plano gratuito pausa após 7 dias sem uso).\n\n"
+               "👉 Acesse [app.supabase.com](https://app.supabase.com), abra o projeto e clique em **Restore project**.")
+    elif isinstance(e, requests.exceptions.ConnectionError):
+        msg = "🔌 **Sem conexão com o banco de dados.** Verifique sua internet e tente novamente."
+    else:
+        msg = f"❌ **Erro ao comunicar com o banco de dados:** {e}"
+    raise _SupabaseError(msg)
+
+
 def _get(table: str, params: dict | None = None) -> list:
-    r = requests.get(f"{_sb_url()}/{table}", headers=_headers(), params=params, timeout=15)
-    r.raise_for_status()
-    return r.json()
+    try:
+        r = requests.get(f"{_sb_url()}/{table}", headers=_headers(), params=params, timeout=15)
+        r.raise_for_status()
+        return r.json()
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        _handle_request_error(e)
+    except requests.exceptions.HTTPError as e:
+        raise _SupabaseError(f"❌ Erro HTTP {e.response.status_code}: {e.response.text[:200]}") from e
 
 def _post(table: str, data: dict) -> list:
-    r = requests.post(f"{_sb_url()}/{table}", headers=_headers(prefer_rep=True), json=data, timeout=15)
-    r.raise_for_status()
-    return r.json()
+    try:
+        r = requests.post(f"{_sb_url()}/{table}", headers=_headers(prefer_rep=True), json=data, timeout=15)
+        r.raise_for_status()
+        return r.json()
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        _handle_request_error(e)
+    except requests.exceptions.HTTPError as e:
+        raise _SupabaseError(f"❌ Erro HTTP {e.response.status_code}: {e.response.text[:200]}") from e
 
 def _patch(table: str, params: dict, data: dict) -> None:
-    r = requests.patch(f"{_sb_url()}/{table}", headers=_headers(), params=params, json=data, timeout=15)
-    r.raise_for_status()
+    try:
+        r = requests.patch(f"{_sb_url()}/{table}", headers=_headers(), params=params, json=data, timeout=15)
+        r.raise_for_status()
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        _handle_request_error(e)
+    except requests.exceptions.HTTPError as e:
+        raise _SupabaseError(f"❌ Erro HTTP {e.response.status_code}: {e.response.text[:200]}") from e
 
 def _delete(table: str, params: dict) -> None:
-    r = requests.delete(f"{_sb_url()}/{table}", headers=_headers(), params=params, timeout=15)
-    r.raise_for_status()
+    try:
+        r = requests.delete(f"{_sb_url()}/{table}", headers=_headers(), params=params, timeout=15)
+        r.raise_for_status()
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        _handle_request_error(e)
+    except requests.exceptions.HTTPError as e:
+        raise _SupabaseError(f"❌ Erro HTTP {e.response.status_code}: {e.response.text[:200]}") from e
 
 
 def init_db() -> None:
     pass  # tabelas já criadas no Supabase
 
 
+def _eq(value) -> str:
+    """Formata filtro PostgREST envolvendo strings em aspas duplas para escapar
+    caracteres reservados como | (OR), , (IN) e espaços."""
+    if isinstance(value, (int, float)):
+        return f"eq.{value}"
+    return f'eq."{value}"'
+
+
 # ── contratos ──
 
+@st.cache_data(ttl=300, show_spinner=False)
 def listar_contratos() -> List[str]:
     rows = _get("contratos", {"select": "numero", "order": "numero.asc"})
     return [r["numero"] for r in rows]
@@ -101,61 +146,72 @@ def listar_contratos() -> List[str]:
 def criar_contrato(numero: str, senha: str, identificador: str = "") -> bool:
     try:
         _post("contratos", {"numero": numero, "senha_admin": senha, "identificador": identificador})
+        listar_contratos.clear()
         return True
     except Exception:
         return False
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def obter_identificador(numero: str) -> str:
-    rows = _get("contratos", {"select": "identificador", "numero": f"eq.{numero}"})
+    rows = _get("contratos", {"select": "identificador", "numero": _eq(numero)})
     return rows[0].get("identificador", "") if rows else ""
 
 
 def atualizar_identificador(numero: str, identificador: str) -> None:
-    _patch("contratos", {"numero": f"eq.{numero}"}, {"identificador": identificador})
+    _patch("contratos", {"numero": _eq(numero)}, {"identificador": identificador})
+    obter_identificador.clear()
 
 
 def verificar_senha(numero: str, senha: str) -> bool:
-    rows = _get("contratos", {"select": "id", "numero": f"eq.{numero}", "senha_admin": f"eq.{senha}"})
+    rows = _get("contratos", {"select": "id", "numero": _eq(numero), "senha_admin": _eq(senha)})
     return len(rows) > 0
 
 
 def excluir_contrato(numero: str) -> None:
-    _delete("contratos", {"numero": f"eq.{numero}"})
+    _delete("contratos", {"numero": _eq(numero)})
+    listar_contratos.clear()
 
 
 # ── fiscais ──
 
+@st.cache_data(ttl=120, show_spinner=False)
 def listar_fiscais(contrato: str) -> list:
-    return _get("fiscais", {"select": "*", "contrato": f"eq.{contrato}", "order": "nome.asc"})
+    return _get("fiscais", {"select": "*", "contrato": _eq(contrato), "order": "nome.asc"})
 
 
 def adicionar_fiscal(contrato, nome, chave, disciplina, email="") -> None:
     _post("fiscais", {"contrato": contrato, "nome": nome, "chave": chave, "disciplina": disciplina, "email": email})
+    listar_fiscais.clear()
 
 
 def excluir_fiscal(fid: int) -> None:
-    _delete("fiscais", {"id": f"eq.{fid}"})
+    _delete("fiscais", {"id": _eq(fid)})
+    listar_fiscais.clear()
 
 
 # ── unidades ──
 
+@st.cache_data(ttl=120, show_spinner=False)
 def listar_unidades(contrato: str) -> list:
-    return _get("unidades", {"select": "*", "contrato": f"eq.{contrato}", "order": "nome.asc"})
+    return _get("unidades", {"select": "*", "contrato": _eq(contrato), "order": "nome.asc"})
 
 
 def adicionar_unidade(contrato: str, nome: str) -> None:
     _post("unidades", {"contrato": contrato, "nome": nome})
+    listar_unidades.clear()
 
 
 def excluir_unidade(uid: int) -> None:
-    _delete("unidades", {"id": f"eq.{uid}"})
+    _delete("unidades", {"id": _eq(uid)})
+    listar_unidades.clear()
 
 
 # ── registros ──
 
+@st.cache_data(ttl=60, show_spinner=False)
 def carregar_lista(tenant: str) -> List[RegistroCM]:
-    rows = _get("registros_cm", {"select": "*", "tenant": f"eq.{tenant}", "order": "id.desc"})
+    rows = _get("registros_cm", {"select": "*", "tenant": _eq(tenant), "order": "id.desc"})
     return [RegistroCM(**r) for r in rows]
 
 
@@ -176,6 +232,7 @@ def salvar_registro(registro: RegistroCM) -> None:
         "evidencias":     registro.evidencias,
         "chave":          registro.chave,
     })
+    carregar_lista.clear()
 
 # ─────────────────────────── HELPERS VISUAIS ──────────────────────
 
@@ -268,9 +325,11 @@ def para_exibicao(registros: List[RegistroCM]) -> list:
     return rows
 
 
-def exibir_cards(registros: List[RegistroCM]) -> None:
+def exibir_cards(registros: List[RegistroCM], contrato: str = "", empreendimento: str = "") -> None:
     for r in registros:
-        with st.expander(id_registro(r), expanded=False):
+        rid = id_registro(r)
+        with st.expander(rid, expanded=False):
+            st.checkbox("Selecionar para PDF", key=f"sel_{r.id}")
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"**Frente:** {r.frente_servico}")
@@ -284,6 +343,19 @@ def exibir_cards(registros: List[RegistroCM]) -> None:
             if r.observacoes:
                 st.markdown(f"**Obs:** {r.observacoes}")
             exibir_grid_evidencias(r.evidencias)
+            if contrato:
+                _share_btn(
+                    "Compartilhar PDF",
+                    _pdf_registro_cached(
+                        r.id, r.evidencias, contrato, empreendimento,
+                        r.tenant, r.data_registro, r.obra, r.frente_servico,
+                        r.disciplina, r.atividade, r.equipe, r.responsavel,
+                        r.fiscal, r.status, r.impacto_rdo, r.observacoes, r.chave,
+                    ),
+                    f"{rid}.pdf",
+                    "application/pdf",
+                    f"pdf_ro_{r.id}",
+                )
 
 # ─────────────────────────── EXPORTAÇÕES ──────────────────────────
 
@@ -398,25 +470,46 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
             pdf.ln(6)
         items = _parse_evidencias(r.evidencias)
         if items:
+            thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
+            col_w = 80
+            row_h = col_w + 14  # 80mm imagem + 14mm legenda
+            page_bottom = pdf.h - pdf.b_margin
+            num_rows = (len(thumbs) + 1) // 2
             pdf.ln(2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(0, 6, "Evidencias:", new_x="LMARGIN", new_y="NEXT")
-            thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
-            col_w = 80
-            row_h = col_w + 14
-            x0, y0 = pdf.get_x(), pdf.get_y()
-            for idx, (thumb_data, legenda) in enumerate(thumbs):
-                col, row = idx % 2, idx // 2
-                x = x0 + col * (col_w + 5)
-                y = y0 + row * row_h
-                pdf.image(io.BytesIO(thumb_data), x=x, y=y, w=col_w)
-                pdf.set_xy(x, y + col_w + 1)
-                pdf.set_font("Helvetica", "I", 7)
-                lines = textwrap.wrap(legenda, width=42)[:2]
-                pdf.multi_cell(col_w, 3.5, "\n".join(lines), align="C")
-            rows_used = (len(thumbs) + 1) // 2
-            pdf.set_xy(x0, y0 + rows_used * row_h)
+            x0 = pdf.get_x()
+            for row_idx in range(num_rows):
+                # só quebra página se a imagem em si não couber (legenda pode sobrar um pouco)
+                if pdf.get_y() + col_w > page_bottom:
+                    pdf.add_page()
+                y_row = pdf.get_y()
+                for col_idx in range(2):
+                    thumb_idx = row_idx * 2 + col_idx
+                    if thumb_idx >= len(thumbs):
+                        break
+                    thumb_data, legenda = thumbs[thumb_idx]
+                    x = x0 + col_idx * (col_w + 5)
+                    pdf.image(io.BytesIO(thumb_data), x=x, y=y_row, w=col_w)
+                    pdf.set_xy(x, y_row + col_w + 1)
+                    pdf.set_font("Helvetica", "I", 7)
+                    lines = textwrap.wrap(legenda, width=42)[:2]
+                    pdf.multi_cell(col_w, 3.5, "\n".join(lines), align="C")
+                pdf.set_xy(x0, y_row + row_h)
     return bytes(pdf.output())
+
+@st.cache_data(show_spinner=False)
+def _pdf_registro_cached(r_id: int, evidencias: str, contrato: str, empreendimento: str,
+                         tenant: str, data_registro: str, obra: str, frente_servico: str,
+                         disciplina: str, atividade: str, equipe: str, responsavel: str,
+                         fiscal: str, status: str, impacto_rdo: str, observacoes: str,
+                         chave: str) -> bytes:
+    r = RegistroCM(id=r_id, tenant=tenant, data_registro=data_registro, obra=obra,
+                   frente_servico=frente_servico, disciplina=disciplina, atividade=atividade,
+                   equipe=equipe, responsavel=responsavel, fiscal=fiscal, status=status,
+                   impacto_rdo=impacto_rdo, observacoes=observacoes,
+                   evidencias=evidencias, chave=chave)
+    return _to_pdf([r], contrato, empreendimento)
 
 # ─────────────────────────── COMPARTILHAMENTO ─────────────────────
 
@@ -453,7 +546,7 @@ async function sf_{fid}(){{
   setTimeout(()=>URL.revokeObjectURL(url),90000);
 }}
 </script>"""
-    st.components.v1.html(html, height=45)
+    st.markdown(html, unsafe_allow_html=True)
 
 
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
@@ -768,19 +861,27 @@ if st.session_state.show_admin:
 # ─────────────────────────── SELEÇÃO DE CONTRATO ─────────────────
 
 st.subheader("Contrato nº.:")
-contratos_disponiveis = listar_contratos()
+try:
+    contratos_disponiveis = listar_contratos()
+except _SupabaseError as _e:
+    st.error(str(_e))
+    st.stop()
 
 if contratos_disponiveis:
-    tenant = st.selectbox("", contratos_disponiveis, label_visibility="collapsed")
+    tenant = st.selectbox("Contrato", contratos_disponiveis, label_visibility="collapsed")
 else:
-    tenant = st.text_input("", placeholder="Nº do contrato (solicite ao admin o cadastro)")
+    tenant = st.text_input("Contrato", placeholder="Nº do contrato (solicite ao admin o cadastro)", label_visibility="collapsed")
     if not tenant.strip():
         st.warning("Nenhum contrato cadastrado. Acesse a Área Admin no menu lateral para cadastrar.")
         st.stop()
     tenant = tenant.strip()
 
-lista_registros = carregar_lista(tenant)
-_empreendimento = obter_identificador(tenant)
+try:
+    lista_registros = carregar_lista(tenant)
+    _empreendimento = obter_identificador(tenant)
+except _SupabaseError as _e:
+    st.error(str(_e))
+    st.stop()
 _emp = (_empreendimento or "SRGE/SI-III/HDTON/CMUGH").upper()
 _titulo_placeholder.markdown(
     f'<p style="font-size:1.1rem;font-weight:700;letter-spacing:0.03em;margin:0;'
@@ -935,18 +1036,20 @@ if st.button("Salvar", type="primary"):
 st.subheader("3) Registros")
 
 if lista_registros:
-    exibir_cards(lista_registros)
+    exibir_cards(lista_registros, tenant, _empreendimento)
 else:
     st.info("Nenhum registro encontrado para este contrato.")
 
-_n = f"{lista_registros[0].id:04d}" if len(lista_registros) == 1 else f"{len(lista_registros):04d}-registros"
 if lista_registros:
-    col_exp1, col_exp2 = st.columns(2)
-    with col_exp1:
-        _share_btn("Compartilhar PDF", _to_pdf(lista_registros, tenant, _empreendimento),
-                   f"RO-{_n}.pdf", "application/pdf", f"pdf_{_n}")
-    with col_exp2:
-        _share_btn("Compartilhar Excel", _to_excel(lista_registros),
-                   f"RO-{_n}.xlsx",
-                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                   f"xlsx_{_n}")
+    selecionados = [r for r in lista_registros if st.session_state.get(f"sel_{r.id}", False)]
+    if selecionados:
+        _n_sel = f"{len(selecionados)}-selecionados"
+        _lbl = f"PDF dos selecionados ({len(selecionados)})"
+        _share_btn(_lbl, _to_pdf(selecionados, tenant, _empreendimento),
+                   f"RO-{_n_sel}.pdf", "application/pdf", f"pdf_sel_{_n_sel}")
+
+    _n = f"{len(lista_registros):04d}-registros"
+    _share_btn("Compartilhar Excel (todos os registros)", _to_excel(lista_registros),
+               f"RO-{_n}.xlsx",
+               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+               f"xlsx_{_n}")
