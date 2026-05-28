@@ -463,6 +463,7 @@ init_db()
 st.set_page_config(page_title="RO - Registro de Ocorrências", layout="centered")
 st.markdown("""
 <style>
+/* ── ocultar chrome do Streamlit ── */
 #MainMenu {visibility: hidden;}
 header[data-testid="stHeader"] {visibility: hidden;}
 footer {visibility: hidden !important; display: none !important;}
@@ -471,6 +472,59 @@ footer {visibility: hidden !important; display: none !important;}
 [data-testid="manage-app-button"] {display: none !important;}
 [class*="viewerBadge"] {display: none !important;}
 [class*="manage"] {display: none !important;}
+
+/* ── tema branco ── */
+html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"],
+[data-testid="stMainBlockContainer"], .main, .block-container {
+    background-color: #FFFFFF !important;
+    color: #0D0D0D !important;
+}
+[data-testid="stSidebar"] {background-color: #F5F5F5 !important;}
+
+/* texto geral */
+p, span, label, div, li, h1, h2, h3, h4, h5, h6,
+[data-testid="stMarkdownContainer"] * {
+    color: #0D0D0D !important;
+}
+
+/* inputs */
+input, textarea, select,
+[data-baseweb="input"] input,
+[data-baseweb="textarea"] textarea,
+[data-baseweb="select"] div {
+    background-color: #F8F8F8 !important;
+    color: #0D0D0D !important;
+    border-color: #CCCCCC !important;
+}
+
+/* selectbox / dropdown */
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="menu"] li {
+    background-color: #FFFFFF !important;
+    color: #0D0D0D !important;
+}
+
+/* expander */
+[data-testid="stExpander"] {
+    background-color: #FAFAFA !important;
+    border-color: #E0E0E0 !important;
+}
+[data-testid="stExpander"] summary p {
+    color: #0D0D0D !important;
+}
+
+/* container com borda */
+[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #FAFAFA !important;
+    border-color: #E0E0E0 !important;
+}
+
+/* botões */
+button[kind="secondary"], button[data-testid="baseButton-secondary"] {
+    background-color: #F0F0F0 !important;
+    color: #0D0D0D !important;
+    border-color: #CCCCCC !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -492,6 +546,35 @@ if st.session_state.admin_logado:
 """, unsafe_allow_html=True)
 
 # ─────────────────────────── CABEÇALHO ───────────────────────────
+
+@st.cache_resource
+def _banner_b64() -> str:
+    """Carrega header.jpg, redimensiona para banner e retorna base64."""
+    from pathlib import Path
+    p = Path("header.jpg")
+    if not p.exists():
+        return ""
+    img = Image.open(p).convert("RGB")
+    # crop central para proporção 6:1 (banner largo)
+    w, h = img.size
+    target_h = max(1, w // 6)
+    if h > target_h:
+        top = (h - target_h) // 2
+        img = img.crop((0, top, w, top + target_h))
+    img = img.resize((1200, 200), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=82)
+    return base64.b64encode(buf.getvalue()).decode()
+
+_b64 = _banner_b64()
+if _b64:
+    st.markdown(
+        f'<div style="width:100%;border-radius:8px;overflow:hidden;margin-bottom:4px">'
+        f'<img src="data:image/jpeg;base64,{_b64}" '
+        f'style="width:100%;height:160px;object-fit:cover;object-position:center 40%">'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 col_titulo, col_gear = st.columns([11, 1])
 with col_titulo:
