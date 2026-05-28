@@ -4,6 +4,7 @@ import io
 import json
 import re
 import sqlite3
+import textwrap
 from dataclasses import dataclass, asdict
 from datetime import date
 from pathlib import Path
@@ -284,7 +285,9 @@ def fmt_data(iso: str) -> str:
 
 def id_registro(r) -> str:
     data = fmt_data(r.data_registro).replace("/", "")
-    return f"RO-{r.obra}-{r.chave}-{data}-{r.id:04d}"
+    disc = (r.disciplina or "").replace(" ", "")
+    partes = [p for p in ["RO", r.obra, disc, data, f"{r.id:04d}"] if p]
+    return "-".join(partes)
 
 
 def _parse_evidencias(evidencias_json: str) -> list:
@@ -395,9 +398,10 @@ def _to_word(registros, contrato: str, empreendimento: str = "") -> bytes:
     _cabecalho_word(doc, contrato, empreendimento)
     for r in registros:
         doc.add_heading(id_registro(r), level=2)
-        tabela = doc.add_table(rows=4, cols=2)
+        tabela = doc.add_table(rows=5, cols=2)
         tabela.style = "Table Grid"
         dados = [
+            ("Fiscal de Campo", r.fiscal or "—", "", ""),
             ("Frente de Serviço", r.frente_servico, "Equipe", r.equipe or "—"),
             ("Responsável Contratada", r.responsavel or "—", "", ""),
             ("Disciplina", r.disciplina, "Status", r.status),
@@ -455,6 +459,7 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 7, id_registro(r), new_x="LMARGIN", new_y="NEXT")
         for label, valor in [
+            ("Fiscal", r.fiscal or "-"),
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
             ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
             ("Responsável", r.responsavel or "-"),
@@ -476,18 +481,20 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(0, 6, "Evidencias:", new_x="LMARGIN", new_y="NEXT")
             thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
-            col_w = 45
+            col_w = 80
+            row_h = col_w + 14  # image + caption (2 lines) + gap
             x0, y0 = pdf.get_x(), pdf.get_y()
             for idx, (thumb_data, legenda) in enumerate(thumbs):
                 col, row = idx % 2, idx // 2
                 x = x0 + col * (col_w + 5)
-                y = y0 + row * (col_w + 10)
+                y = y0 + row * row_h
                 pdf.image(io.BytesIO(thumb_data), x=x, y=y, w=col_w)
                 pdf.set_xy(x, y + col_w + 1)
                 pdf.set_font("Helvetica", "I", 7)
-                pdf.cell(col_w, 4, legenda[:30], align="C")
+                lines = textwrap.wrap(legenda, width=42)[:2]
+                pdf.multi_cell(col_w, 3.5, "\n".join(lines), align="C")
             rows_used = (len(thumbs) + 1) // 2
-            pdf.set_xy(x0, y0 + rows_used * (col_w + 10))
+            pdf.set_xy(x0, y0 + rows_used * row_h)
         pdf.ln(4)
         pdf.set_draw_color(180, 180, 180)
         pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 170, pdf.get_y())
