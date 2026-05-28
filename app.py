@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, asdict
 from datetime import date
@@ -455,6 +456,44 @@ def _to_pdf(registros, contrato: str) -> bytes:
         pdf.ln(4)
     return bytes(pdf.output())
 
+# ─────────────────────────── COMPARTILHAMENTO ─────────────────────
+
+def _share_btn(label: str, data: bytes, filename: str, mime: str, key: str) -> None:
+    """Botão que usa Web Share API no mobile; fallback download no desktop."""
+    b64 = base64.b64encode(data).decode()
+    fid = re.sub(r"\W", "_", key)
+    html = f"""
+<style>
+#sbtn_{fid}{{background:#ff4b4b;color:#fff;border:none;padding:8px 16px;
+border-radius:6px;cursor:pointer;font-size:14px;width:100%;
+font-weight:600;font-family:sans-serif;}}
+#sbtn_{fid}:hover{{background:#e03e3e;}}
+</style>
+<button id="sbtn_{fid}" onclick="sf_{fid}()">{label}</button>
+<script>
+async function sf_{fid}(){{
+  const raw=atob('{b64}');
+  const buf=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) buf[i]=raw.charCodeAt(i);
+  const blob=new Blob([buf],{{type:'{mime}'}});
+  const file=new File([blob],'{filename}',{{type:'{mime}'}});
+  if(navigator.canShare&&navigator.canShare({{files:[file]}})){{
+    try{{await navigator.share({{files:[file],title:'{filename}'}});return;}}
+    catch(e){{if(e.name==='AbortError')return;}}
+  }}
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  if(!w){{
+    const a=document.createElement('a');
+    a.href=url;a.download='{filename}';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }}
+  setTimeout(()=>URL.revokeObjectURL(url),90000);
+}}
+</script>"""
+    st.components.v1.html(html, height=45)
+
+
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
@@ -702,15 +741,14 @@ else:
     st.info("Nenhum registro encontrado para este contrato.")
 
 _n = f"{lista_registros[0].id:04d}" if len(lista_registros) == 1 else f"{len(lista_registros):04d}-registros"
-col_exp1, col_exp2 = st.columns(2)
-with col_exp1:
-    st.download_button("⬇ PDF", data=_to_pdf(lista_registros, tenant),
-        file_name=f"RO-{_n}.pdf", mime="application/pdf",
-        use_container_width=True, disabled=not lista_registros)
-with col_exp2:
-    st.download_button("⬇ Excel (.xlsx)", data=_to_excel(lista_registros),
-        file_name=f"RO-{_n}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True, disabled=not lista_registros)
-
-st.caption("Baixe o arquivo e compartilhe pelo WhatsApp, e-mail, Drive ou qualquer app do seu dispositivo.")
+if lista_registros:
+    col_exp1, col_exp2 = st.columns(2)
+    with col_exp1:
+        _share_btn("Compartilhar PDF", _to_pdf(lista_registros, tenant),
+                   f"RO-{_n}.pdf", "application/pdf", f"pdf_{_n}")
+    with col_exp2:
+        _share_btn("Compartilhar Excel", _to_excel(lista_registros),
+                   f"RO-{_n}.xlsx",
+                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                   f"xlsx_{_n}")
+    st.caption("No celular: escolha WhatsApp, e-mail, Drive ou qualquer app. No desktop: abre/baixa o arquivo.")
