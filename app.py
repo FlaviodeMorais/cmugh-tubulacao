@@ -445,7 +445,7 @@ class _PDF(FPDF):
         self._logo_bytes = base64.b64decode(_b64) if _b64 else None
 
     def header(self):
-        logo_h_mm = 11.0  # ≈ 32px a 96dpi
+        logo_h_mm = 9.3  # ≈ 28px a 96dpi
         if self._logo_bytes:
             try:
                 _lw, _lh = Image.open(io.BytesIO(self._logo_bytes)).size
