@@ -487,8 +487,7 @@ def enviar_email_list(contrato: str, registros: List[RegistroCM],
     try:
         n = len(registros)
         data_hoje = date.today().strftime("%d/%m/%Y")
-        nome_arq = (f"RO-{registros[0].id:04d}.docx" if n == 1
-                    else f"RO-{n:04d}-registros.docx")
+        prefixo = f"RO-{registros[0].id:04d}" if n == 1 else f"RO-{n:04d}-registros"
 
         msg = MIMEMultipart()
         msg["From"] = cfg["smtp_usuario"]
@@ -507,12 +506,15 @@ def enviar_email_list(contrato: str, registros: List[RegistroCM],
                  "SRGE/SI-III/HDTON/CMUGH")
         msg.attach(MIMEText(corpo, "plain", "utf-8"))
 
-        word_bytes = _to_word(registros, contrato)
-        part = MIMEBase("application", "octet-stream")
-        part.set_payload(word_bytes)
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", f'attachment; filename="{nome_arq}"')
-        msg.attach(part)
+        def _anexar(payload: bytes, filename: str) -> None:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(payload)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+            msg.attach(part)
+
+        _anexar(_to_excel(registros), f"{prefixo}.xlsx")
+        _anexar(_to_pdf(registros, contrato), f"{prefixo}.pdf")
 
         ctx = ssl.create_default_context()
         porta = int(cfg.get("smtp_porta") or 587)
