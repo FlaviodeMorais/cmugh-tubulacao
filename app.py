@@ -694,11 +694,12 @@ fiscais_disponiveis = listar_fiscais(tenant)
 fiscal_selecionado  = {}
 
 if fiscais_disponiveis:
-    nomes = [f["nome"] for f in fiscais_disponiveis]
-    nome_escolhido = st.selectbox("Nome do Fiscal de Campo", nomes, key="sel_fiscal")
+    nomes = [""] + [f["nome"] for f in fiscais_disponiveis]
+    nome_escolhido = st.selectbox("Nome do Fiscal de Campo", nomes, key="sel_fiscal",
+                                  format_func=lambda x: "— selecione —" if x == "" else x)
     fiscal_selecionado = next((f for f in fiscais_disponiveis if f["nome"] == nome_escolhido), {})
     col_chave, col_disc_f = st.columns(2)
-    col_chave.text_input("Chave",     value=fiscal_selecionado.get("chave", ""),     disabled=True, key="chave_ro")
+    col_chave.text_input("Chave",      value=fiscal_selecionado.get("chave", ""),      disabled=True, key="chave_ro")
     col_disc_f.text_input("Disciplina", value=fiscal_selecionado.get("disciplina", ""), disabled=True, key="disc_ro")
 else:
     st.info("Nenhum fiscal cadastrado para este contrato. Solicite ao admin.")
