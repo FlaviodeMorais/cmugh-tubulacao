@@ -373,10 +373,11 @@ class _PDF(FPDF):
 def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
     pdf = _PDF(contrato, empreendimento)
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
     for r in registros:
+        pdf.add_page()
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 7, id_registro(r), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
         for label, valor in [
             ("Fiscal", r.fiscal or "-"),
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
@@ -397,11 +398,12 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
             pdf.ln(6)
         items = _parse_evidencias(r.evidencias)
         if items:
+            pdf.ln(2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(0, 6, "Evidencias:", new_x="LMARGIN", new_y="NEXT")
             thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
             col_w = 80
-            row_h = col_w + 14  # image + caption (2 lines) + gap
+            row_h = col_w + 14
             x0, y0 = pdf.get_x(), pdf.get_y()
             for idx, (thumb_data, legenda) in enumerate(thumbs):
                 col, row = idx % 2, idx // 2
@@ -414,10 +416,6 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
                 pdf.multi_cell(col_w, 3.5, "\n".join(lines), align="C")
             rows_used = (len(thumbs) + 1) // 2
             pdf.set_xy(x0, y0 + rows_used * row_h)
-        pdf.ln(4)
-        pdf.set_draw_color(180, 180, 180)
-        pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 170, pdf.get_y())
-        pdf.ln(4)
     return bytes(pdf.output())
 
 # ─────────────────────────── COMPARTILHAMENTO ─────────────────────
