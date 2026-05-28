@@ -14,7 +14,7 @@ from docx.shared import Cm, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from fpdf import FPDF
 from PIL import Image
-from supabase import create_client, Client
+import requests
 
 import streamlit as st
 
@@ -53,13 +53,38 @@ class RegistroCM:
     evidencias: str = ""
     chave: str = ""
 
-# ─────────────────────────── BANCO DE DADOS (Supabase) ───────────────────────
+# ─────────────────────────── BANCO DE DADOS (Supabase REST) ──────────────────
 
-@st.cache_resource
-def get_supabase() -> Client:
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
-    return create_client(url, key)
+def _sb_url() -> str:
+    return st.secrets.get("supabase", {}).get("url", "") + "/rest/v1"
+
+def _sb_key() -> str:
+    return st.secrets.get("supabase", {}).get("key", "")
+
+def _headers(prefer_rep: bool = False) -> dict:
+    key = _sb_key()
+    h = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    if prefer_rep:
+        h["Prefer"] = "return=representation"
+    return h
+
+def _get(table: str, params: dict | None = None) -> list:
+    r = requests.get(f"{_sb_url()}/{table}", headers=_headers(), params=params, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+def _post(table: str, data: dict) -> list:
+    r = requests.post(f"{_sb_url()}/{table}", headers=_headers(prefer_rep=True), json=data, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+def _patch(table: str, params: dict, data: dict) -> None:
+    r = requests.patch(f"{_sb_url()}/{table}", headers=_headers(), params=params, json=data, timeout=15)
+    r.raise_for_status()
+
+def _delete(table: str, params: dict) -> None:
+    r = requests.delete(f"{_sb_url()}/{table}", headers=_headers(), params=params, timeout=15)
+    r.raise_for_status()
 
 
 def init_db() -> None:
@@ -69,94 +94,88 @@ def init_db() -> None:
 # ── contratos ──
 
 def listar_contratos() -> List[str]:
-    res = get_supabase().table("contratos").select("numero").order("numero").execute()
-    return [r["numero"] for r in res.data]
+    rows = _get("contratos", {"select": "numero", "order": "numero.asc"})
+    return [r["numero"] for r in rows]
 
 
 def criar_contrato(numero: str, senha: str, identificador: str = "") -> bool:
     try:
-        get_supabase().table("contratos").insert(
-            {"numero": numero, "senha_admin": senha, "identificador": identificador}
-        ).execute()
+        _post("contratos", {"numero": numero, "senha_admin": senha, "identificador": identificador})
         return True
     except Exception:
         return False
 
 
 def obter_identificador(numero: str) -> str:
-    res = get_supabase().table("contratos").select("identificador").eq("numero", numero).execute()
-    return res.data[0].get("identificador", "") if res.data else ""
+    rows = _get("contratos", {"select": "identificador", "numero": f"eq.{numero}"})
+    return rows[0].get("identificador", "") if rows else ""
 
 
 def atualizar_identificador(numero: str, identificador: str) -> None:
-    get_supabase().table("contratos").update({"identificador": identificador}).eq("numero", numero).execute()
+    _patch("contratos", {"numero": f"eq.{numero}"}, {"identificador": identificador})
 
 
 def verificar_senha(numero: str, senha: str) -> bool:
-    res = get_supabase().table("contratos").select("id").eq("numero", numero).eq("senha_admin", senha).execute()
-    return len(res.data) > 0
+    rows = _get("contratos", {"select": "id", "numero": f"eq.{numero}", "senha_admin": f"eq.{senha}"})
+    return len(rows) > 0
 
 
 def excluir_contrato(numero: str) -> None:
-    get_supabase().table("contratos").delete().eq("numero", numero).execute()
+    _delete("contratos", {"numero": f"eq.{numero}"})
 
 
 # ── fiscais ──
 
 def listar_fiscais(contrato: str) -> list:
-    res = get_supabase().table("fiscais").select("*").eq("contrato", contrato).order("nome").execute()
-    return res.data
+    return _get("fiscais", {"select": "*", "contrato": f"eq.{contrato}", "order": "nome.asc"})
 
 
 def adicionar_fiscal(contrato, nome, chave, disciplina, email="") -> None:
-    get_supabase().table("fiscais").insert(
-        {"contrato": contrato, "nome": nome, "chave": chave, "disciplina": disciplina, "email": email}
-    ).execute()
+    _post("fiscais", {"contrato": contrato, "nome": nome, "chave": chave, "disciplina": disciplina, "email": email})
 
 
 def excluir_fiscal(fid: int) -> None:
-    get_supabase().table("fiscais").delete().eq("id", fid).execute()
+    _delete("fiscais", {"id": f"eq.{fid}"})
 
 
 # ── unidades ──
 
 def listar_unidades(contrato: str) -> list:
-    res = get_supabase().table("unidades").select("*").eq("contrato", contrato).order("nome").execute()
-    return res.data
+    return _get("unidades", {"select": "*", "contrato": f"eq.{contrato}", "order": "nome.asc"})
 
 
 def adicionar_unidade(contrato: str, nome: str) -> None:
-    get_supabase().table("unidades").insert({"contrato": contrato, "nome": nome}).execute()
+    _post("unidades", {"contrato": contrato, "nome": nome})
 
 
 def excluir_unidade(uid: int) -> None:
-    get_supabase().table("unidades").delete().eq("id", uid).execute()
+    _delete("unidades", {"id": f"eq.{uid}"})
 
 
 # ── registros ──
 
 def carregar_lista(tenant: str) -> List[RegistroCM]:
-    res = get_supabase().table("registros_cm").select("*").eq("tenant", tenant).order("id", desc=True).execute()
-    return [RegistroCM(**r) for r in res.data]
+    rows = _get("registros_cm", {"select": "*", "tenant": f"eq.{tenant}", "order": "id.desc"})
+    return [RegistroCM(**r) for r in rows]
 
 
 def salvar_registro(registro: RegistroCM) -> None:
-    get_supabase().table("registros_cm").insert({
-        "tenant":        registro.tenant,
-        "data_registro": registro.data_registro,
-        "obra":          registro.obra,
+    _post("registros_cm", {
+        "tenant":         registro.tenant,
+        "data_registro":  registro.data_registro,
+        "obra":           registro.obra,
         "frente_servico": registro.frente_servico,
-        "disciplina":    registro.disciplina,
-        "atividade":     registro.atividade,
-        "equipe":        registro.equipe,
-        "responsavel":   registro.responsavel,
-        "fiscal":        registro.fiscal,
-        "status":        registro.status,
-        "impacto_rdo":   registro.impacto_rdo,
-        "observacoes":   registro.observacoes,
-        "evidencias":    registro.evidencias,
-        "chave":         registro.chave,
-    }).execute()
+        "disciplina":     registro.disciplina,
+        "atividade":      registro.atividade,
+        "equipe":         registro.equipe,
+        "responsavel":    registro.responsavel,
+        "fiscal":         registro.fiscal,
+        "status":         registro.status,
+        "impacto_rdo":    registro.impacto_rdo,
+        "observacoes":    registro.observacoes,
+        "evidencias":     registro.evidencias,
+        "chave":          registro.chave,
+    })
 
 # ─────────────────────────── HELPERS VISUAIS ──────────────────────
 
