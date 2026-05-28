@@ -787,15 +787,15 @@ with col_disciplina:
 atividade = st.text_area("Atividade Executada", key=f"ativ_{fk}")
 
 fotos = st.file_uploader(
-    "Evidências (máx. 4 fotos, 2 MB cada)",
+    "Evidências (máx. 4 fotos, 20 MB cada)",
     type=["jpg", "jpeg", "png", "webp"],
     accept_multiple_files=True,
     key=f"fotos_{fk}",
 )
 fotos_validas = []
 for f in fotos:
-    if len(f.getvalue()) > 2 * 1024 * 1024:
-        st.warning(f"'{f.name}' excede 2 MB e foi ignorada.")
+    if len(f.getvalue()) > 20 * 1024 * 1024:
+        st.warning(f"'{f.name}' excede 20 MB e foi ignorada.")
     else:
         fotos_validas.append(f)
 fotos = fotos_validas[:4]
