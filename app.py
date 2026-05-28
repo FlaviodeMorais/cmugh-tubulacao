@@ -503,7 +503,7 @@ async function sf_{fid}(){{
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
-st.set_page_config(page_title="RO - Registro de Ocorrências", page_icon="📱", layout="centered")
+st.set_page_config(page_title="RO - Registro de Ocorrências", layout="centered")
 
 # ─────────────────────────── SIDEBAR ADMIN ────────────────────────
 
@@ -594,7 +594,7 @@ with st.sidebar:
 
 st.markdown(
     '<h1 style="font-size:1.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-    '📱 RO - Registro de Ocorrências</h1>',
+    'RO - Registro de Ocorrências</h1>',
     unsafe_allow_html=True,
 )
 st.caption("SRGE/SI-III/HDTON/CMUGH")
