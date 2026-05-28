@@ -728,17 +728,14 @@ _banner_img = (
 )
 _logo_img = (
     f'<img src="data:image/{_logo_mime};base64,{_logo_data}" '
-    f'style="height:38px;object-fit:contain;'
-    f'filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7))">'
+    f'style="height:42px;object-fit:contain;display:block">'
     if _logo_data else ""
 )
 
 st.markdown(f"""
+<div style="margin-bottom:4px">{_logo_img}</div>
 <div style="position:relative;width:100%;border-radius:8px;overflow:hidden;margin-bottom:8px">
   {_banner_img}
-  <div style="position:absolute;top:12px;left:14px;z-index:2">
-    {_logo_img}
-  </div>
   <button id="hdr-admin-btn"
     onclick="(function(){{
       var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
