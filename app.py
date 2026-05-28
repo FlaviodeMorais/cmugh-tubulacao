@@ -739,7 +739,7 @@ _logo_img = (
 )
 
 if _logo_img:
-    st.markdown(_logo_img, unsafe_allow_html=True)
+    st.markdown(f'<div style="margin-bottom:16px">{_logo_img}</div>', unsafe_allow_html=True)
 
 st.markdown(
     f'<div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>',
