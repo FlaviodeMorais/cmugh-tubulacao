@@ -555,7 +555,7 @@ async function sf_{fid}(){{
   setTimeout(()=>URL.revokeObjectURL(url),90000);
 }}
 </script>"""
-    st.markdown(html, unsafe_allow_html=True)
+    st.components.v1.html(html, height=45)
 
 
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
