@@ -664,7 +664,10 @@ button[kind="primary"] p {
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
 
-/* Reservado para estilos futuros */
+/* Oculta o st.button do gear que aparece logo após o bloco markdown do header */
+[data-testid="stMarkdownContainer"] + [data-testid="stButton"] {
+    display: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -729,27 +732,27 @@ _logo_img = (
     if _logo_data else ""
 )
 
-_adm_href = "?adm=1" if not st.session_state.show_admin else "?"
-
-# Linha logo + botão em flexbox HTML — mesma linha em mobile e desktop, sem botão Streamlit duplicado
+# Linha logo + botão em flexbox HTML — mesma linha em mobile e desktop
 st.markdown(f"""
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
   {_logo_img}
-  <a href="{_adm_href}"
-     style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
-            border-radius:6px;padding:4px 12px;font-size:1.2rem;
-            cursor:pointer;line-height:1.2;text-decoration:none;flex-shrink:0">☰</a>
+  <button onclick="(function(){{
+      var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
+      if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
+    }})()"
+    style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
+           border-radius:6px;padding:4px 12px;font-size:1.2rem;
+           cursor:pointer;line-height:1.2;flex-shrink:0">☰</button>
 </div>
 <div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>
 """, unsafe_allow_html=True)
 
 _titulo_placeholder = st.empty()
 
-# Lê query param para sincronizar estado (após navegação pelo link ☰)
-if st.query_params.get("adm") == "1" and not st.session_state.show_admin:
-    st.session_state.show_admin = True
-elif st.query_params.get("adm") != "1" and st.session_state.show_admin:
-    st.session_state.show_admin = False
+# Botão funcional oculto via CSS adjacente — acionado pelo HTML acima
+if st.button("☰", help="Configurações / Admin", key="btn_gear"):
+    st.session_state.show_admin = not st.session_state.show_admin
+    st.rerun()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
@@ -763,7 +766,6 @@ if st.session_state.show_admin:
             if col_sair.button("Sair", key="admin_sair"):
                 st.session_state.admin_logado = False
                 st.session_state.show_admin = False
-                st.query_params.clear()
                 st.rerun()
 
             contratos_admin = listar_contratos()
