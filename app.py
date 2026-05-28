@@ -1,9 +1,15 @@
 import base64
 import io
 import json
+import smtplib
+import ssl
 import sqlite3
 from dataclasses import dataclass, asdict
 from datetime import date
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List
 
@@ -75,7 +81,12 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS contratos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 numero TEXT UNIQUE NOT NULL,
-                senha_admin TEXT NOT NULL
+                senha_admin TEXT NOT NULL,
+                email_destino TEXT DEFAULT '',
+                smtp_servidor TEXT DEFAULT '',
+                smtp_porta INTEGER DEFAULT 587,
+                smtp_usuario TEXT DEFAULT '',
+                smtp_senha TEXT DEFAULT ''
             )
         """)
         conn.execute("""
@@ -85,7 +96,8 @@ def init_db() -> None:
                 nome TEXT NOT NULL,
                 matricula TEXT DEFAULT '',
                 chave TEXT DEFAULT '',
-                disciplina TEXT DEFAULT ''
+                disciplina TEXT DEFAULT '',
+                email TEXT DEFAULT ''
             )
         """)
         conn.execute("""
@@ -101,6 +113,21 @@ def init_db() -> None:
         ]:
             try:
                 conn.execute(f"ALTER TABLE registros_cm ADD COLUMN {col} {definition}")
+            except sqlite3.OperationalError:
+                pass
+        try:
+            conn.execute("ALTER TABLE fiscais ADD COLUMN email TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
+        for col, defn in [
+            ("email_destino", "TEXT DEFAULT ''"),
+            ("smtp_servidor", "TEXT DEFAULT ''"),
+            ("smtp_porta",    "INTEGER DEFAULT 587"),
+            ("smtp_usuario",  "TEXT DEFAULT ''"),
+            ("smtp_senha",    "TEXT DEFAULT ''"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE contratos ADD COLUMN {col} {defn}")
             except sqlite3.OperationalError:
                 pass
 
@@ -135,6 +162,22 @@ def excluir_contrato(numero: str) -> None:
         conn.execute("DELETE FROM contratos WHERE numero=?", (numero,))
 
 
+def obter_email_config(contrato: str) -> dict:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM contratos WHERE numero=?", (contrato,)).fetchone()
+    return dict(row) if row else {}
+
+
+def atualizar_email_config(contrato: str, email_destino: str, smtp_servidor: str,
+                           smtp_porta: int, smtp_usuario: str, smtp_senha: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE contratos SET email_destino=?, smtp_servidor=?, smtp_porta=?, "
+            "smtp_usuario=?, smtp_senha=? WHERE numero=?",
+            (email_destino, smtp_servidor, smtp_porta, smtp_usuario, smtp_senha, contrato),
+        )
+
+
 # ── fiscais ──
 
 def listar_fiscais(contrato: str) -> list:
@@ -145,11 +188,11 @@ def listar_fiscais(contrato: str) -> list:
     return [dict(r) for r in rows]
 
 
-def adicionar_fiscal(contrato, nome, matricula, chave, disciplina) -> None:
+def adicionar_fiscal(contrato, nome, matricula, chave, disciplina, email="") -> None:
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO fiscais (contrato, nome, matricula, chave, disciplina) VALUES (?,?,?,?,?)",
-            (contrato, nome, matricula, chave, disciplina),
+            "INSERT INTO fiscais (contrato, nome, matricula, chave, disciplina, email) VALUES (?,?,?,?,?,?)",
+            (contrato, nome, matricula, chave, disciplina, email),
         )
 
 
@@ -434,6 +477,55 @@ def _to_pdf(registros, contrato: str) -> bytes:
         pdf.ln(4)
     return bytes(pdf.output())
 
+# ─────────────────────────── ENVIO DE E-MAIL ──────────────────────
+
+def enviar_email_list(contrato: str, registros: List[RegistroCM],
+                      fiscal_nome: str, fiscal_email: str) -> tuple:
+    cfg = obter_email_config(contrato)
+    if not cfg.get("smtp_servidor") or not cfg.get("smtp_usuario") or not cfg.get("email_destino"):
+        return False, "Configuração de e-mail incompleta. Acesse a Área Admin > E-mail."
+    try:
+        n = len(registros)
+        data_hoje = date.today().strftime("%d/%m/%Y")
+        nome_arq = (f"RO-{registros[0].id:04d}.docx" if n == 1
+                    else f"RO-{n:04d}-registros.docx")
+
+        msg = MIMEMultipart()
+        msg["From"] = cfg["smtp_usuario"]
+        msg["To"] = cfg["email_destino"]
+        if fiscal_email:
+            msg["Reply-To"] = fiscal_email
+        msg["Subject"] = (f"List RO - {fiscal_nome} - {data_hoje} "
+                          f"({n} registro{'s' if n != 1 else ''})")
+
+        corpo = (f"List de Ocorrências — {data_hoje}\n\n"
+                 f"Fiscal: {fiscal_nome}\n"
+                 f"E-mail: {fiscal_email or '—'}\n"
+                 f"Contrato: {contrato}\n"
+                 f"Total de registros: {n}\n\n"
+                 "Gerado automaticamente pelo RO - Registro de Ocorrências\n"
+                 "SRGE/SI-III/HDTON/CMUGH")
+        msg.attach(MIMEText(corpo, "plain", "utf-8"))
+
+        word_bytes = _to_word(registros, contrato)
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(word_bytes)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f'attachment; filename="{nome_arq}"')
+        msg.attach(part)
+
+        ctx = ssl.create_default_context()
+        porta = int(cfg.get("smtp_porta") or 587)
+        with smtplib.SMTP(cfg["smtp_servidor"], porta) as server:
+            server.ehlo()
+            server.starttls(context=ctx)
+            server.login(cfg["smtp_usuario"], cfg["smtp_senha"])
+            server.sendmail(cfg["smtp_usuario"], cfg["email_destino"], msg.as_string())
+        return True, f"List enviado com sucesso para {cfg['email_destino']}."
+    except Exception as exc:
+        return False, f"Erro ao enviar e-mail: {exc}"
+
+
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
@@ -454,19 +546,21 @@ with st.sidebar:
             st.session_state.admin_contrato = None
             st.rerun()
 
-        tab_f, tab_u = st.tabs(["Fiscais", "Unidades"])
+        tab_f, tab_u, tab_email = st.tabs(["Fiscais", "Unidades", "E-mail"])
 
         # ── Fiscais ──
         with tab_f:
             st.markdown("**Cadastrar Fiscal**")
             with st.form("form_fiscal"):
-                f_nome = st.text_input("Nome do Fiscal de Campo")
-                f_mat  = st.text_input("Matrícula")
+                f_nome  = st.text_input("Nome do Fiscal de Campo")
+                f_mat   = st.text_input("Matrícula")
                 f_chave = st.text_input("Chave")
                 f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
+                f_email = st.text_input("E-mail do Fiscal")
                 if st.form_submit_button("Adicionar"):
                     if f_nome.strip():
-                        adicionar_fiscal(contrato_admin, f_nome.strip(), f_mat.strip(), f_chave.strip(), f_disc)
+                        adicionar_fiscal(contrato_admin, f_nome.strip(), f_mat.strip(),
+                                         f_chave.strip(), f_disc, f_email.strip())
                         st.success("Fiscal adicionado.")
                         st.rerun()
                     else:
@@ -475,7 +569,7 @@ with st.sidebar:
             st.markdown("**Fiscais cadastrados**")
             for fiscal in listar_fiscais(contrato_admin):
                 c1, c2 = st.columns([4, 1])
-                c1.write(f"{fiscal['nome']} | {fiscal['chave']}")
+                c1.write(f"{fiscal['nome']} | {fiscal.get('email') or fiscal['chave']}")
                 if c2.button("🗑", key=f"del_f_{fiscal['id']}"):
                     excluir_fiscal(fiscal["id"])
                     st.rerun()
@@ -500,6 +594,32 @@ with st.sidebar:
                 if c2.button("🗑", key=f"del_u_{unidade['id']}"):
                     excluir_unidade(unidade["id"])
                     st.rerun()
+
+        # ── E-mail ──
+        with tab_email:
+            cfg = obter_email_config(contrato_admin)
+            st.markdown("**E-mail destinatário** *(recebe todos os lists)*")
+            with st.form("form_email_cfg"):
+                e_destino  = st.text_input("E-mail de destino (admin/coordenação)",
+                                           value=cfg.get("email_destino", ""))
+                st.markdown("**Conta de envio (SMTP)**")
+                e_servidor = st.text_input("Servidor SMTP",
+                                           value=cfg.get("smtp_servidor", "smtp.gmail.com"),
+                                           placeholder="smtp.gmail.com")
+                e_porta    = st.number_input("Porta", min_value=1, max_value=65535, step=1,
+                                             value=int(cfg.get("smtp_porta") or 587))
+                e_usuario  = st.text_input("Usuário (e-mail remetente)",
+                                           value=cfg.get("smtp_usuario", ""))
+                e_senha    = st.text_input("Senha / App Password", type="password",
+                                           placeholder="deixe em branco para manter a atual")
+                st.caption("Para Gmail com 2FA ative, use uma App Password em "
+                           "Conta Google → Segurança → Senhas de app.")
+                if st.form_submit_button("Salvar configuração"):
+                    senha_salvar = e_senha.strip() if e_senha.strip() else cfg.get("smtp_senha", "")
+                    atualizar_email_config(contrato_admin, e_destino.strip(),
+                                          e_servidor.strip(), int(e_porta),
+                                          e_usuario.strip(), senha_salvar)
+                    st.success("Configuração de e-mail salva.")
 
     else:
         st.markdown("**Login**")
@@ -671,43 +791,45 @@ if st.button("Salvar no list", type="primary"):
         st.session_state.fk += 1
         st.rerun()
 
-# ─────────────────────────── 3) CONSOLIDAÇÃO ─────────────────────
+# ─────────────────────────── 3) LIST DO FISCAL ───────────────────
 
-st.subheader("3) Consolidação do fiscal para RDOe")
-filtro_obra    = st.text_input("Filtrar por unidade")
-filtro_impacto = st.multiselect("Filtrar pertinência", ["Alta", "Média", "Baixa"], default=["Alta", "Média"])
-filtro_status  = st.multiselect("Filtrar status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], default=["Executado", "Em andamento", "Bloqueado"])
+st.subheader("3) List do Fiscal")
 
-lista_filtrada = lista_registros
-if filtro_obra.strip():
-    lista_filtrada = [r for r in lista_filtrada if filtro_obra.lower() in r.obra.lower()]
-if filtro_impacto:
-    lista_filtrada = [r for r in lista_filtrada if r.impacto_rdo in filtro_impacto]
-if filtro_status:
-    lista_filtrada = [r for r in lista_filtrada if r.status in filtro_status]
-
-st.metric("Registros pertinentes para RDOe", len(lista_filtrada))
-if lista_filtrada:
-    exibir_cards(lista_filtrada)
+if lista_registros:
+    exibir_cards(lista_registros)
 else:
-    st.warning("Nenhum registro encontrado com os filtros atuais.")
+    st.info("Nenhum registro encontrado para este contrato.")
 
-_n = f"{lista_filtrada[0].id:04d}" if len(lista_filtrada) == 1 else f"{len(lista_filtrada):04d}-registros"
+_n = f"{lista_registros[0].id:04d}" if len(lista_registros) == 1 else f"{len(lista_registros):04d}-registros"
 col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
 with col_exp1:
-    st.download_button("⬇ Word (.docx)", data=_to_word(lista_filtrada, tenant),
+    st.download_button("⬇ Word (.docx)", data=_to_word(lista_registros, tenant),
         file_name=f"RO-{_n}.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True)
+        use_container_width=True, disabled=not lista_registros)
 with col_exp2:
-    st.download_button("⬇ PDF", data=_to_pdf(lista_filtrada, tenant),
-        file_name=f"RO-{_n}.pdf", mime="application/pdf", use_container_width=True)
+    st.download_button("⬇ PDF", data=_to_pdf(lista_registros, tenant),
+        file_name=f"RO-{_n}.pdf", mime="application/pdf",
+        use_container_width=True, disabled=not lista_registros)
 with col_exp3:
-    st.download_button("⬇ Excel (.xlsx)", data=_to_excel(lista_filtrada),
+    st.download_button("⬇ Excel (.xlsx)", data=_to_excel(lista_registros),
         file_name=f"RO-{_n}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True)
+        use_container_width=True, disabled=not lista_registros)
 with col_exp4:
     st.download_button("⬇ JSON",
-        data=json.dumps(para_exibicao(lista_filtrada), ensure_ascii=False, indent=2),
-        file_name=f"RO-{_n}.json", mime="application/json", use_container_width=True)
+        data=json.dumps(para_exibicao(lista_registros), ensure_ascii=False, indent=2),
+        file_name=f"RO-{_n}.json", mime="application/json",
+        use_container_width=True, disabled=not lista_registros)
+
+st.markdown("---")
+col_email_btn, _ = st.columns([2, 3])
+with col_email_btn:
+    if st.button("📧 Enviar List por E-mail", use_container_width=True,
+                 disabled=not lista_registros, key="btn_enviar_email"):
+        _fiscal_email = fiscal_selecionado.get("email", "")
+        _ok, _msg = enviar_email_list(tenant, lista_registros, fiscal_nome, _fiscal_email)
+        if _ok:
+            st.success(_msg)
+        else:
+            st.error(_msg)
