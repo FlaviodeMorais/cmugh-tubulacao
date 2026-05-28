@@ -526,6 +526,27 @@ button[kind="secondary"], button[data-testid="baseButton-secondary"] {
     border-color: #CCCCCC !important;
 }
 
+/* botão primário — verde Petrobras */
+button[data-testid="baseButton-primary"],
+button[kind="primary"] {
+    background-color: #007A33 !important;
+    border-color: #007A33 !important;
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+}
+button[data-testid="baseButton-primary"]:hover,
+button[kind="primary"]:hover {
+    background-color: #005C26 !important;
+    border-color: #005C26 !important;
+    color: #FFFFFF !important;
+}
+button[data-testid="baseButton-primary"] p,
+button[kind="primary"] p {
+    color: #FFFFFF !important;
+}
+
 /* botão de menu — só ícone, sem caixa */
 .icon-btn button,
 .icon-btn button:hover,
