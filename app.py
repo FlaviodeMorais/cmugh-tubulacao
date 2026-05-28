@@ -833,21 +833,22 @@ if "fk" not in st.session_state:
 fk = st.session_state.fk
 
 # Unidade
+_SELECIONE = "— selecione —"
 unidades_disponiveis = [u["nome"] for u in listar_unidades(tenant)]
 col_unidade, col_data = st.columns([4, 1])
 with col_unidade:
     if unidades_disponiveis:
-        obra = st.selectbox("Unidade", unidades_disponiveis, key=f"obra_{fk}")
+        obra = st.selectbox("Unidade", [_SELECIONE] + unidades_disponiveis, key=f"obra_{fk}")
     else:
         obra = st.text_input("Unidade", key=f"obra_{fk}")
 with col_data:
-    data_registro = st.date_input("Data", value=date.today(), format="DD/MM/YYYY", key=f"data_{fk}")
+    data_registro = st.date_input("Data", value=None, format="DD/MM/YYYY", key=f"data_{fk}")
 
 col_frente, col_disciplina = st.columns([3, 2])
 with col_frente:
     frente_servico = st.text_input("Frente de serviço", key=f"frente_{fk}")
 with col_disciplina:
-    disciplina = st.selectbox("Disciplina", DISCIPLINAS, key=f"disc_{fk}")
+    disciplina = st.selectbox("Disciplina", [_SELECIONE] + DISCIPLINAS, key=f"disc_{fk}")
 
 atividade = st.text_area("Atividade Executada", key=f"ativ_{fk}")
 
@@ -888,14 +889,23 @@ with col_equipe:
     equipe      = st.text_input("Equipe da Contratada", key=f"equipe_{fk}")
 with col_resp:
     responsavel = st.text_input("Responsável Contratada", key=f"resp_{fk}")
-status    = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
-impacto_rdo = st.selectbox("Classificação do Registro", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
+status      = st.selectbox("Status", [_SELECIONE, "Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
+impacto_rdo = st.selectbox("Classificação do Registro", [_SELECIONE, "Alta", "Média", "Baixa"], key=f"impacto_{fk}")
 observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
 
 if st.button("Salvar", type="primary"):
-    obrigatorios = [str(obra).strip(), frente_servico.strip(), atividade.strip(), fiscal_nome.strip()]
-    if not all(obrigatorios):
-        st.error("Preencha os campos obrigatórios: unidade, frente, atividade e fiscal.")
+    _obra_val = str(obra).strip()
+    _campos_invalidos = []
+    if not fiscal_nome.strip():            _campos_invalidos.append("Fiscal de Campo")
+    if not _obra_val or _obra_val == _SELECIONE: _campos_invalidos.append("Unidade")
+    if data_registro is None:              _campos_invalidos.append("Data")
+    if disciplina == _SELECIONE:           _campos_invalidos.append("Disciplina")
+    if not frente_servico.strip():         _campos_invalidos.append("Frente de serviço")
+    if not atividade.strip():              _campos_invalidos.append("Atividade Executada")
+    if status == _SELECIONE:              _campos_invalidos.append("Status")
+    if impacto_rdo == _SELECIONE:         _campos_invalidos.append("Classificação do Registro")
+    if _campos_invalidos:
+        st.error(f"Preencha os campos obrigatórios: {', '.join(_campos_invalidos)}")
     else:
         salvar_registro(RegistroCM(
             id=0,
