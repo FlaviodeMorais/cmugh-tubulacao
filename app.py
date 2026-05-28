@@ -664,7 +664,16 @@ button[kind="primary"] p {
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
 
-/* Reservado */
+/* Linha título + botão: impede empilhamento no mobile */
+[data-testid="stMarkdownContainer"] + [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+}
+[data-testid="stMarkdownContainer"] + [data-testid="stHorizontalBlock"]
+  [data-testid="stColumn"]:last-child {
+    flex: 0 0 auto !important;
+    min-width: 50px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -729,8 +738,6 @@ _logo_img = (
     if _logo_data else ""
 )
 
-# Linha logo + botão em flexbox HTML — mesma linha em mobile e desktop
-# O onclick localiza o st.button pelo container stButton (não pelo title, que o Streamlit não expõe)
 if _logo_img:
     st.markdown(_logo_img, unsafe_allow_html=True)
 
@@ -739,11 +746,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_titulo_placeholder = st.empty()
-
-if st.button("☰", key="btn_gear"):
-    st.session_state.show_admin = not st.session_state.show_admin
-    st.rerun()
+# Título (esquerda) + botão ☰ (direita) na mesma linha
+_col_titulo, _col_gear = st.columns([11, 1], vertical_alignment="center")
+with _col_titulo:
+    _titulo_placeholder = st.empty()
+with _col_gear:
+    if st.button("☰", key="btn_gear"):
+        st.session_state.show_admin = not st.session_state.show_admin
+        st.rerun()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
