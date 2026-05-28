@@ -664,10 +664,7 @@ button[kind="primary"] p {
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
 
-/* Oculta o st.button do gear que aparece logo após o bloco markdown do header */
-[data-testid="stMarkdownContainer"] + [data-testid="stButton"] {
-    display: none !important;
-}
+/* Reservado */
 </style>
 """, unsafe_allow_html=True)
 
@@ -733,24 +730,48 @@ _logo_img = (
 )
 
 # Linha logo + botão em flexbox HTML — mesma linha em mobile e desktop
+# O onclick localiza o st.button pelo container stButton (não pelo title, que o Streamlit não expõe)
 st.markdown(f"""
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
   {_logo_img}
-  <button onclick="(function(){{
-      var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
-      if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
+  <button id="hdr-gear"
+    onclick="(function(){{
+      var cs=document.querySelectorAll('[data-testid=\\"stButton\\"]');
+      for(var i=0;i<cs.length;i++){{
+        var b=cs[i].querySelector('button');
+        if(b&&b.textContent.trim()==='\\u2630'){{
+          cs[i].style.display='none';
+          b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
+          break;
+        }}
+      }}
     }})()"
     style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
            border-radius:6px;padding:4px 12px;font-size:1.2rem;
-           cursor:pointer;line-height:1.2;flex-shrink:0">☰</button>
+           cursor:pointer;line-height:1.2;flex-shrink:0">&#9776;</button>
 </div>
 <div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>
+<img src="x" onerror="(function(){{
+  function hide(){{
+    var cs=document.querySelectorAll('[data-testid=\\"stButton\\"]');
+    for(var i=0;i<cs.length;i++){{
+      var b=cs[i].querySelector('button');
+      if(b&&b.textContent.trim()==='\\u2630'){{cs[i].style.display='none';return true;}}
+    }}
+    return false;
+  }}
+  if(!hide()){{
+    var o=new MutationObserver(function(){{if(hide())o.disconnect();}});
+    o.observe(document.body,{{childList:true,subtree:true}});
+    setTimeout(function(){{o.disconnect();}},10000);
+  }}
+}})()" style="display:none">
 """, unsafe_allow_html=True)
 
 _titulo_placeholder = st.empty()
 
-# Botão funcional oculto via CSS adjacente — acionado pelo HTML acima
-if st.button("☰", help="Configurações / Admin", key="btn_gear"):
+# Botão Streamlit real — oculto pelo JS acima, acionado pelo botão HTML via dispatchEvent
+if st.button("☰", key="btn_gear"):
     st.session_state.show_admin = not st.session_state.show_admin
     st.rerun()
 
