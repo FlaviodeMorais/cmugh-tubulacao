@@ -128,11 +128,7 @@ def init_db() -> None:
 
 
 def _eq(value) -> str:
-    """Formata filtro PostgREST envolvendo strings em aspas duplas para escapar
-    caracteres reservados como | (OR), , (IN) e espaços."""
-    if isinstance(value, (int, float)):
-        return f"eq.{value}"
-    return f'eq."{value}"'
+    return f"eq.{value}"
 
 
 # ── contratos ──
