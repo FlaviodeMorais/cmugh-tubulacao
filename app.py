@@ -53,6 +53,9 @@ class RegistroCM:
     observacoes: str
     evidencias: str = ""
     chave: str = ""
+    hora_registro: str = ""
+    latitude: str = ""
+    longitude: str = ""
 
 # ─────────────────────────── BANCO DE DADOS (Supabase REST) ──────────────────
 
