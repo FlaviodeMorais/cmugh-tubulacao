@@ -188,11 +188,11 @@ def listar_fiscais(contrato: str) -> list:
     return [dict(r) for r in rows]
 
 
-def adicionar_fiscal(contrato, nome, matricula, chave, disciplina, email="") -> None:
+def adicionar_fiscal(contrato, nome, chave, disciplina, email="") -> None:
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO fiscais (contrato, nome, matricula, chave, disciplina, email) VALUES (?,?,?,?,?,?)",
-            (contrato, nome, matricula, chave, disciplina, email),
+            "INSERT INTO fiscais (contrato, nome, chave, disciplina, email) VALUES (?,?,?,?,?)",
+            (contrato, nome, chave, disciplina, email),
         )
 
 
@@ -555,13 +555,12 @@ with st.sidebar:
             st.markdown("**Cadastrar Fiscal**")
             with st.form("form_fiscal"):
                 f_nome  = st.text_input("Nome do Fiscal de Campo")
-                f_mat   = st.text_input("Matrícula")
                 f_chave = st.text_input("Chave")
                 f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
                 f_email = st.text_input("E-mail do Fiscal")
                 if st.form_submit_button("Adicionar"):
                     if f_nome.strip():
-                        adicionar_fiscal(contrato_admin, f_nome.strip(), f_mat.strip(),
+                        adicionar_fiscal(contrato_admin, f_nome.strip(),
                                          f_chave.strip(), f_disc, f_email.strip())
                         st.success("Fiscal adicionado.")
                         st.rerun()
@@ -681,17 +680,16 @@ if fiscais_disponiveis:
     nomes = [f["nome"] for f in fiscais_disponiveis]
     nome_escolhido = st.selectbox("Nome do Fiscal de Campo", nomes, key="sel_fiscal")
     fiscal_selecionado = next((f for f in fiscais_disponiveis if f["nome"] == nome_escolhido), {})
-    col_mat, col_chave, col_disc_f = st.columns(3)
-    col_mat.text_input("Matrícula",   value=fiscal_selecionado.get("matricula", ""), disabled=True, key="mat_ro")
+    col_chave, col_disc_f = st.columns(2)
     col_chave.text_input("Chave",     value=fiscal_selecionado.get("chave", ""),     disabled=True, key="chave_ro")
     col_disc_f.text_input("Disciplina", value=fiscal_selecionado.get("disciplina", ""), disabled=True, key="disc_ro")
 else:
     st.info("Nenhum fiscal cadastrado para este contrato. Solicite ao admin.")
-    col_nome, col_mat = st.columns([3, 2])
+    col_nome, col_email_f = st.columns([3, 2])
     with col_nome:
         fiscal_selecionado["nome"] = st.text_input("Nome do Fiscal de Campo", key="fiscal_nome_livre")
-    with col_mat:
-        fiscal_selecionado["matricula"] = st.text_input("Matrícula", key="fiscal_mat_livre")
+    with col_email_f:
+        fiscal_selecionado["email"] = st.text_input("E-mail", key="fiscal_email_livre")
     col_chave, col_disc_f = st.columns([2, 3])
     with col_chave:
         fiscal_selecionado["chave"] = st.text_input("Chave", key="fiscal_chave_livre")
