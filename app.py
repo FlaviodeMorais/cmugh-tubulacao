@@ -664,15 +664,7 @@ button[kind="primary"] p {
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
 
-/* Botão ☰ do cabeçalho: sem borda, sem fundo */
-button[data-testid="baseButton-secondary"][title="Configurações / Admin"] {
-    background: transparent !important;
-    border: 1px solid #CCC !important;
-    font-size: 1.2rem !important;
-    padding: 4px 10px !important;
-    min-height: unset !important;
-    line-height: 1.2 !important;
-}
+/* Reservado para estilos futuros */
 </style>
 """, unsafe_allow_html=True)
 
@@ -737,21 +729,55 @@ _logo_img = (
     if _logo_data else ""
 )
 
-_col_logo, _col_gear = st.columns([11, 1], vertical_alignment="top")
-with _col_logo:
-    if _logo_img:
-        st.markdown(_logo_img, unsafe_allow_html=True)
-with _col_gear:
-    if st.button("☰", help="Configurações / Admin", key="btn_gear"):
-        st.session_state.show_admin = not st.session_state.show_admin
-        st.rerun()
-
-st.markdown(
-    f'<div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>',
-    unsafe_allow_html=True,
-)
+# Linha logo + botão em flexbox HTML → mesma linha em mobile e desktop
+st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:space-between;
+            margin-bottom:6px">
+  {_logo_img}
+  <button onclick="(function(){{
+      var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
+      if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
+    }})()"
+    style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
+           border-radius:6px;padding:4px 12px;font-size:1.2rem;
+           cursor:pointer;line-height:1.2;flex-shrink:0">☰</button>
+</div>
+<div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>
+""", unsafe_allow_html=True)
 
 _titulo_placeholder = st.empty()
+
+# Botão Streamlit oculto — acionado pelo HTML acima via dispatchEvent
+if st.button("☰", help="Configurações / Admin", key="btn_gear"):
+    st.session_state.show_admin = not st.session_state.show_admin
+    st.rerun()
+
+# JS via onerror (executa nativamente no browser) — oculta o container do botão Streamlit
+st.markdown("""
+<img src="x" onerror="(function(){
+  function hide(){
+    var btns=document.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++){
+      if(btns[i].title==='Configurações / Admin'){
+        var el=btns[i];
+        while(el.parentElement){
+          el=el.parentElement;
+          if(el.getAttribute&&el.getAttribute('data-testid')==='stButton'){
+            el.style.cssText='display:none!important';
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+  if(!hide()){
+    var o=new MutationObserver(function(){if(hide())o.disconnect();});
+    o.observe(document.body,{childList:true,subtree:true});
+    setTimeout(function(){o.disconnect();},8000);
+  }
+})()" style="display:none">
+""", unsafe_allow_html=True)
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
