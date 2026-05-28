@@ -663,6 +663,17 @@ button[kind="primary"] p {
     line-height: 1 !important;
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
+
+/* Botão gear oculto — acesso via JS a partir do header HTML */
+button[title="Configurações / Admin"] {
+    position: fixed !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0.001 !important;
+    pointer-events: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -714,33 +725,44 @@ def _logo_b64() -> str:
     return "", ""
 
 _b64 = _banner_b64()
-if _b64:
-    st.markdown(
-        f'<div style="width:100%;border-radius:8px;overflow:hidden;margin-bottom:4px">'
-        f'<img src="data:image/jpeg;base64,{_b64}" '
-        f'style="width:100%;height:160px;object-fit:cover;object-position:center 40%">'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
 _logo_mime, _logo_data = _logo_b64()
 
-if _logo_data:
-    st.markdown(
-        f'<img src="data:image/{_logo_mime};base64,{_logo_data}" '
-        f'style="height:30px;object-fit:contain;display:block;margin-top:10px;margin-bottom:10px">',
-        unsafe_allow_html=True,
-    )
+_banner_img = (
+    f'<img src="data:image/jpeg;base64,{_b64}" '
+    f'style="width:100%;height:160px;object-fit:cover;object-position:center 40%;display:block">'
+    if _b64 else '<div style="height:160px;background:#007A33"></div>'
+)
+_logo_img = (
+    f'<img src="data:image/{_logo_mime};base64,{_logo_data}" '
+    f'style="height:38px;object-fit:contain;'
+    f'filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7))">'
+    if _logo_data else ""
+)
 
-col_titulo, col_gear = st.columns([11, 1])
-with col_titulo:
-    _titulo_placeholder = st.empty()
-with col_gear:
-    st.markdown("<div class='icon-btn' style='padding-top:6px;text-align:right'>", unsafe_allow_html=True)
-    if st.button("☰", help="Configurações / Admin", key="btn_gear"):
-        st.session_state.show_admin = not st.session_state.show_admin
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown(f"""
+<div style="position:relative;width:100%;border-radius:8px;overflow:hidden;margin-bottom:8px">
+  {_banner_img}
+  <div style="position:absolute;top:12px;left:14px;z-index:2">
+    {_logo_img}
+  </div>
+  <button id="hdr-admin-btn"
+    onclick="(function(){{
+      var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
+      if(b){{b.style.pointerEvents='auto';b.click();b.style.pointerEvents='none';}}
+    }})()"
+    style="position:absolute;top:10px;right:12px;z-index:2;
+           background:rgba(0,0,0,0.40);color:#fff;border:none;
+           border-radius:6px;padding:5px 12px;font-size:1.25rem;
+           cursor:pointer;backdrop-filter:blur(4px);line-height:1.2">☰</button>
+</div>
+""", unsafe_allow_html=True)
+
+_titulo_placeholder = st.empty()
+
+# Botão gear oculto via CSS — o JS do header o aciona
+if st.button("☰", help="Configurações / Admin", key="btn_gear"):
+    st.session_state.show_admin = not st.session_state.show_admin
+    st.rerun()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
@@ -943,11 +965,12 @@ except _SupabaseError as _e:
     st.stop()
 _emp = (_empreendimento or "SRGE/SI-III/HDTON/CMUGH").upper()
 _titulo_placeholder.markdown(
+    f'<div style="margin:4px 0 8px">'
+    f'<p style="font-size:0.85rem;font-weight:400;letter-spacing:0.04em;margin:0;'
+    f'color:#555;text-transform:uppercase">{_emp}</p>'
     f'<p style="font-size:1.1rem;font-weight:700;letter-spacing:0.03em;margin:0;'
-    f'color:#0D0D0D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-    f'{_emp}'
-    f'<span style="font-weight:300;margin:0 10px;color:#888">|</span>'
-    f'RO - REGISTRO DE OCORRÊNCIAS</p>',
+    f'color:#0D0D0D">RO - REGISTRO DE OCORRÊNCIAS</p>'
+    f'</div>',
     unsafe_allow_html=True,
 )
 
