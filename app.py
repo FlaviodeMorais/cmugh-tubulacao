@@ -324,7 +324,7 @@ def exibir_cards(registros: List[RegistroCM]) -> None:
             with col2:
                 st.markdown(f"**Equipe:** {r.equipe or '—'}")
                 st.markdown(f"**Status:** {r.status}")
-                st.markdown(f"**Pertinência RDOe:** {r.impacto_rdo}")
+                st.markdown(f"**Classificação:** {r.impacto_rdo}")
             if r.observacoes:
                 st.markdown(f"**Obs:** {r.observacoes}")
             exibir_grid_evidencias(r.evidencias)
@@ -365,7 +365,7 @@ def _to_word(registros, contrato: str) -> bytes:
         dados = [
             ("Frente de Serviço", r.frente_servico, "Equipe", r.equipe or "—"),
             ("Disciplina", r.disciplina, "Status", r.status),
-            ("Atividade Executada", r.atividade, "Pertinência RDOe", r.impacto_rdo),
+            ("Atividade Executada", r.atividade, "Classificação", r.impacto_rdo),
         ]
         for i, (l1, v1, l2, v2) in enumerate(dados):
             tabela.cell(i, 0).text = f"{l1}: {v1}"
@@ -420,7 +420,7 @@ def _to_pdf(registros, contrato: str) -> bytes:
         for label, valor in [
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
             ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
-            ("Status", r.status), ("Pertinencia RDOe", r.impacto_rdo),
+            ("Status", r.status), ("Classificação", r.impacto_rdo),
         ]:
             pdf.set_font("Helvetica", "B", 9)
             pdf.write(6, f"{label}: ")
@@ -700,7 +700,7 @@ if fotos:
 
 equipe    = st.text_input("Equipe da Contratada", key=f"equipe_{fk}")
 status    = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
-impacto_rdo = st.selectbox("Pertinência para RDOe", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
+impacto_rdo = st.selectbox("Classificação do Registro", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
 observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
 
 if st.button("Salvar", type="primary"):
