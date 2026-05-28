@@ -540,11 +540,12 @@ st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header[data-testid="stHeader"] {visibility: hidden;}
-footer {visibility: hidden;}
-[data-testid="stToolbar"] {display: none;}
+footer {visibility: hidden !important; display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stBottom"] {display: none !important;}
 [data-testid="manage-app-button"] {display: none !important;}
 [class*="viewerBadge"] {display: none !important;}
-[data-testid="stBottom"] > div:last-child {display: none !important;}
+[class*="manage"] {display: none !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -554,6 +555,16 @@ if "admin_logado" not in st.session_state:
     st.session_state.admin_logado = False
 if "show_admin" not in st.session_state:
     st.session_state.show_admin = False
+
+# Mostra Manage App apenas se admin estiver autenticado
+if st.session_state.admin_logado:
+    st.markdown("""
+<style>
+[data-testid="stBottom"] {display: flex !important;}
+[data-testid="manage-app-button"] {display: flex !important;}
+[class*="viewerBadge"] {display: block !important;}
+</style>
+""", unsafe_allow_html=True)
 
 # ─────────────────────────── CABEÇALHO ───────────────────────────
 
@@ -580,13 +591,6 @@ if st.session_state.show_admin:
         st.markdown("#### ⚙️ Área Admin")
 
         if st.session_state.admin_logado:
-            st.markdown("""
-<style>
-[data-testid="manage-app-button"] {display: flex !important;}
-[class*="viewerBadge"] {display: block !important;}
-[data-testid="stBottom"] > div:last-child {display: block !important;}
-</style>
-""", unsafe_allow_html=True)
             col_ok, col_sair = st.columns([4, 1])
             col_ok.success("Admin conectado")
             if col_sair.button("Sair", key="admin_sair"):
