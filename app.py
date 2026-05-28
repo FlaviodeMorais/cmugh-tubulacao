@@ -558,6 +558,13 @@ if st.session_state.show_admin:
         st.markdown("#### ⚙️ Área Admin")
 
         if st.session_state.admin_logado:
+            st.markdown("""
+<style>
+[data-testid="manage-app-button"] {display: flex !important;}
+[class*="viewerBadge"] {display: block !important;}
+[data-testid="stBottom"] > div:last-child {display: block !important;}
+</style>
+""", unsafe_allow_html=True)
             col_ok, col_sair = st.columns([4, 1])
             col_ok.success("Admin conectado")
             if col_sair.button("Sair", key="admin_sair"):
