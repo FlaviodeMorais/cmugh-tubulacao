@@ -704,8 +704,11 @@ if fotos:
                         _img_centralizada(_thumbs[_idx])
                         _legendas.append(st.text_input("Legenda", key=f"cap_{_idx}_{fk}", placeholder="Descrição da evidência", label_visibility="collapsed"))
 
-equipe       = st.text_input("Equipe da Contratada", key=f"equipe_{fk}")
-responsavel  = st.text_input("Responsável Contratada", key=f"resp_{fk}")
+col_equipe, col_resp = st.columns(2)
+with col_equipe:
+    equipe      = st.text_input("Equipe da Contratada", key=f"equipe_{fk}")
+with col_resp:
+    responsavel = st.text_input("Responsável Contratada", key=f"resp_{fk}")
 status    = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
 impacto_rdo = st.selectbox("Classificação do Registro", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
 observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
