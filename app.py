@@ -703,7 +703,7 @@ status    = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "N
 impacto_rdo = st.selectbox("Pertinência para RDOe", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
 observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
 
-if st.button("Salvar no list", type="primary"):
+if st.button("Salvar", type="primary"):
     obrigatorios = [str(obra).strip(), frente_servico.strip(), atividade.strip(), fiscal_nome.strip()]
     if not all(obrigatorios):
         st.error("Preencha os campos obrigatórios: unidade, frente, atividade e fiscal.")
