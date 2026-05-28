@@ -1,15 +1,9 @@
 import base64
 import io
 import json
-import smtplib
-import ssl
 import sqlite3
 from dataclasses import dataclass, asdict
 from datetime import date
-from email import encoders
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List
 
@@ -160,22 +154,6 @@ def verificar_senha(numero: str, senha: str) -> bool:
 def excluir_contrato(numero: str) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM contratos WHERE numero=?", (numero,))
-
-
-def obter_email_config(contrato: str) -> dict:
-    with get_conn() as conn:
-        row = conn.execute("SELECT * FROM contratos WHERE numero=?", (contrato,)).fetchone()
-    return dict(row) if row else {}
-
-
-def atualizar_email_config(contrato: str, email_destino: str, smtp_servidor: str,
-                           smtp_porta: int, smtp_usuario: str, smtp_senha: str) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE contratos SET email_destino=?, smtp_servidor=?, smtp_porta=?, "
-            "smtp_usuario=?, smtp_senha=? WHERE numero=?",
-            (email_destino, smtp_servidor, smtp_porta, smtp_usuario, smtp_senha, contrato),
-        )
 
 
 # ── fiscais ──
@@ -477,57 +455,6 @@ def _to_pdf(registros, contrato: str) -> bytes:
         pdf.ln(4)
     return bytes(pdf.output())
 
-# ─────────────────────────── ENVIO DE E-MAIL ──────────────────────
-
-def enviar_email_list(contrato: str, registros: List[RegistroCM],
-                      fiscal_nome: str, fiscal_email: str) -> tuple:
-    cfg = obter_email_config(contrato)
-    if not cfg.get("smtp_servidor") or not cfg.get("smtp_usuario") or not cfg.get("email_destino"):
-        return False, "Configuração de e-mail incompleta. Acesse a Área Admin > E-mail."
-    try:
-        n = len(registros)
-        data_hoje = date.today().strftime("%d/%m/%Y")
-        prefixo = f"RO-{registros[0].id:04d}" if n == 1 else f"RO-{n:04d}-registros"
-
-        msg = MIMEMultipart()
-        msg["From"] = cfg["smtp_usuario"]
-        msg["To"] = cfg["email_destino"]
-        if fiscal_email:
-            msg["Reply-To"] = fiscal_email
-        msg["Subject"] = (f"List RO - {fiscal_nome} - {data_hoje} "
-                          f"({n} registro{'s' if n != 1 else ''})")
-
-        corpo = (f"List de Ocorrências — {data_hoje}\n\n"
-                 f"Fiscal: {fiscal_nome}\n"
-                 f"E-mail: {fiscal_email or '—'}\n"
-                 f"Contrato: {contrato}\n"
-                 f"Total de registros: {n}\n\n"
-                 "Gerado automaticamente pelo RO - Registro de Ocorrências\n"
-                 "SRGE/SI-III/HDTON/CMUGH")
-        msg.attach(MIMEText(corpo, "plain", "utf-8"))
-
-        def _anexar(payload: bytes, filename: str) -> None:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(payload)
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
-            msg.attach(part)
-
-        _anexar(_to_excel(registros), f"{prefixo}.xlsx")
-        _anexar(_to_pdf(registros, contrato), f"{prefixo}.pdf")
-
-        ctx = ssl.create_default_context()
-        porta = int(cfg.get("smtp_porta") or 587)
-        with smtplib.SMTP(cfg["smtp_servidor"], porta) as server:
-            server.ehlo()
-            server.starttls(context=ctx)
-            server.login(cfg["smtp_usuario"], cfg["smtp_senha"])
-            server.sendmail(cfg["smtp_usuario"], cfg["email_destino"], msg.as_string())
-        return True, f"List enviado com sucesso para {cfg['email_destino']}."
-    except Exception as exc:
-        return False, f"Erro ao enviar e-mail: {exc}"
-
-
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
@@ -548,7 +475,7 @@ with st.sidebar:
             st.session_state.admin_contrato = None
             st.rerun()
 
-        tab_f, tab_u, tab_email = st.tabs(["Fiscais", "Unidades", "E-mail"])
+        tab_f, tab_u = st.tabs(["Fiscais", "Unidades"])
 
         # ── Fiscais ──
         with tab_f:
@@ -595,32 +522,6 @@ with st.sidebar:
                 if c2.button("🗑", key=f"del_u_{unidade['id']}"):
                     excluir_unidade(unidade["id"])
                     st.rerun()
-
-        # ── E-mail ──
-        with tab_email:
-            cfg = obter_email_config(contrato_admin)
-            st.markdown("**E-mail destinatário** *(recebe todos os lists)*")
-            with st.form("form_email_cfg"):
-                e_destino  = st.text_input("E-mail de destino (admin/coordenação)",
-                                           value=cfg.get("email_destino", ""))
-                st.markdown("**Conta de envio (SMTP)**")
-                e_servidor = st.text_input("Servidor SMTP",
-                                           value=cfg.get("smtp_servidor", "smtp.gmail.com"),
-                                           placeholder="smtp.gmail.com")
-                e_porta    = st.number_input("Porta", min_value=1, max_value=65535, step=1,
-                                             value=int(cfg.get("smtp_porta") or 587))
-                e_usuario  = st.text_input("Usuário (e-mail remetente)",
-                                           value=cfg.get("smtp_usuario", ""))
-                e_senha    = st.text_input("Senha / App Password", type="password",
-                                           placeholder="deixe em branco para manter a atual")
-                st.caption("Para Gmail com 2FA ative, use uma App Password em "
-                           "Conta Google → Segurança → Senhas de app.")
-                if st.form_submit_button("Salvar configuração"):
-                    senha_salvar = e_senha.strip() if e_senha.strip() else cfg.get("smtp_senha", "")
-                    atualizar_email_config(contrato_admin, e_destino.strip(),
-                                          e_servidor.strip(), int(e_porta),
-                                          e_usuario.strip(), senha_salvar)
-                    st.success("Configuração de e-mail salva.")
 
     else:
         st.markdown("**Login**")
@@ -812,14 +713,4 @@ with col_exp2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True, disabled=not lista_registros)
 
-st.markdown("---")
-col_email_btn, _ = st.columns([2, 3])
-with col_email_btn:
-    if st.button("📧 Enviar List por E-mail", use_container_width=True,
-                 disabled=not lista_registros, key="btn_enviar_email"):
-        _fiscal_email = fiscal_selecionado.get("email", "")
-        _ok, _msg = enviar_email_list(tenant, lista_registros, fiscal_nome, _fiscal_email)
-        if _ok:
-            st.success(_msg)
-        else:
-            st.error(_msg)
+st.caption("Baixe o arquivo e compartilhe pelo WhatsApp, e-mail, Drive ou qualquer app do seu dispositivo.")
