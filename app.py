@@ -514,6 +514,14 @@ async function sf_{fid}(){{
 
 init_db()
 st.set_page_config(page_title="RO - Registro de Ocorrências", layout="centered")
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+header[data-testid="stHeader"] {visibility: hidden;}
+footer {visibility: hidden;}
+[data-testid="stToolbar"] {display: none;}
+</style>
+""", unsafe_allow_html=True)
 
 # ─────────────────────────── SIDEBAR ADMIN ────────────────────────
 

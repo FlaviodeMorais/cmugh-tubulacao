@@ -1,2 +1,5 @@
 [server]
 maxUploadSize = 2
+
+[client]
+toolbarMode = "minimal"
