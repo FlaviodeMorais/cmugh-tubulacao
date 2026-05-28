@@ -733,7 +733,7 @@ if st.button("Salvar no list", type="primary"):
 
 # ─────────────────────────── 3) LIST DO FISCAL ───────────────────
 
-st.subheader("3) List do Fiscal")
+st.subheader("3) Registros")
 
 if lista_registros:
     exibir_cards(lista_registros)
