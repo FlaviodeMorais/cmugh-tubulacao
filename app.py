@@ -6,6 +6,7 @@ import re
 import textwrap
 from dataclasses import dataclass, asdict
 from datetime import date
+from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -561,10 +562,11 @@ async function sf_{fid}(){{
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
+_favicon = Image.open(Path(__file__).parent / "favicon.png")
 st.set_page_config(
     page_title="RO - Registro de Ocorrências",
     layout="centered",
-    page_icon="favicon.png",
+    page_icon=_favicon,
 )
 st.markdown("""
 <style>
