@@ -737,7 +737,7 @@ _logo_img = (
     if _logo_data else ""
 )
 
-_col_logo, _col_gear = st.columns([11, 1])
+_col_logo, _col_gear = st.columns([11, 1], vertical_alignment="top")
 with _col_logo:
     if _logo_img:
         st.markdown(_logo_img, unsafe_allow_html=True)
