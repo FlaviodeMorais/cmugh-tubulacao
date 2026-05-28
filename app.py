@@ -427,10 +427,10 @@ def _share_btn(label: str, data: bytes, filename: str, mime: str, key: str) -> N
     fid = re.sub(r"\W", "_", key)
     html = f"""
 <style>
-#sbtn_{fid}{{background:#ff4b4b;color:#fff;border:none;padding:8px 16px;
+#sbtn_{fid}{{background:#007A33;color:#fff;border:none;padding:8px 16px;
 border-radius:6px;cursor:pointer;font-size:14px;width:100%;
-font-weight:600;font-family:sans-serif;}}
-#sbtn_{fid}:hover{{background:#e03e3e;}}
+font-weight:700;font-family:sans-serif;letter-spacing:0.04em;text-transform:uppercase;}}
+#sbtn_{fid}:hover{{background:#005C26;}}
 </style>
 <button id="sbtn_{fid}" onclick="sf_{fid}()">{label}</button>
 <script>
