@@ -204,7 +204,8 @@ def fmt_data(iso: str) -> str:
 def id_registro(r) -> str:
     data = fmt_data(r.data_registro).replace("/", "")
     disc = (r.disciplina or "").replace(" ", "")
-    partes = [p for p in ["RO", r.obra, disc, data, f"{r.id:04d}"] if p]
+    fiscal = (r.fiscal or "").strip()
+    partes = [p for p in ["RO", f"{r.id:04d}", r.obra, disc, data, fiscal] if p]
     return "-".join(partes)
 
 
