@@ -441,10 +441,23 @@ class _PDF(FPDF):
         super().__init__()
         self._contrato = contrato
         self._empreendimento = empreendimento or "SRGE/SI-III/HDTON/CMUGH"
+        _mime, _b64 = _logo_b64()
+        self._logo_bytes = base64.b64decode(_b64) if _b64 else None
 
     def header(self):
+        logo_h_mm = 11.0  # ≈ 32px a 96dpi
+        if self._logo_bytes:
+            try:
+                _lw, _lh = Image.open(io.BytesIO(self._logo_bytes)).size
+                _lw_mm = logo_h_mm * (_lw / _lh)
+                self.image(io.BytesIO(self._logo_bytes),
+                           x=self.w - self.r_margin - _lw_mm,
+                           y=self.t_margin,
+                           h=logo_h_mm)
+            except Exception:
+                pass
         self.set_font("Helvetica", "B", 12)
-        self.cell(0, 8, "RO - Registro de Ocorrencias", align="L", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, logo_h_mm, "RO - Registro de Ocorrencias", align="L", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "", 9)
         self.cell(0, 6, f"{self._empreendimento}  |  Contrato: {self._contrato}", align="L", new_x="LMARGIN", new_y="NEXT")
         self.ln(2)
