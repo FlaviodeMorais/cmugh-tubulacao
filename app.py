@@ -568,6 +568,14 @@ st.set_page_config(
     layout="centered",
     page_icon=_favicon,
 )
+
+# Injeta favicon via HTML para sobrepor o ícone padrão do Streamlit Cloud
+_fav_b64 = base64.b64encode((Path(__file__).parent / "favicon.png").read_bytes()).decode()
+st.markdown(
+    f'<link rel="shortcut icon" type="image/png" href="data:image/png;base64,{_fav_b64}">',
+    unsafe_allow_html=True,
+)
+
 st.markdown("""
 <style>
 /* ── ocultar chrome do Streamlit ── */
