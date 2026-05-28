@@ -37,6 +37,7 @@ class RegistroCM:
     disciplina: str
     atividade: str
     equipe: str
+    responsavel: str
     fiscal: str
     status: str
     impacto_rdo: str
@@ -64,6 +65,7 @@ def init_db() -> None:
                 disciplina TEXT NOT NULL,
                 atividade TEXT NOT NULL,
                 equipe TEXT,
+                responsavel TEXT DEFAULT '',
                 fiscal TEXT NOT NULL,
                 status TEXT NOT NULL,
                 impacto_rdo TEXT NOT NULL,
@@ -103,8 +105,9 @@ def init_db() -> None:
             )
         """)
         for col, definition in [
-            ("evidencias", "TEXT DEFAULT ''"),
-            ("chave",      "TEXT DEFAULT ''"),
+            ("evidencias",   "TEXT DEFAULT ''"),
+            ("chave",        "TEXT DEFAULT ''"),
+            ("responsavel",  "TEXT DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE registros_cm ADD COLUMN {col} {definition}")
@@ -215,12 +218,12 @@ def salvar_registro(registro: RegistroCM) -> None:
         conn.execute("""
             INSERT INTO registros_cm (
                 tenant, data_registro, obra, frente_servico, disciplina, atividade,
-                equipe, fiscal, status, impacto_rdo, observacoes, evidencias, chave
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                equipe, responsavel, fiscal, status, impacto_rdo, observacoes, evidencias, chave
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             registro.tenant, registro.data_registro, registro.obra,
             registro.frente_servico, registro.disciplina, registro.atividade,
-            registro.equipe, registro.fiscal, registro.status,
+            registro.equipe, registro.responsavel, registro.fiscal, registro.status,
             registro.impacto_rdo, registro.observacoes,
             registro.evidencias, registro.chave,
         ))
@@ -323,6 +326,7 @@ def exibir_cards(registros: List[RegistroCM]) -> None:
                 st.markdown(f"**Atividade:** {r.atividade}")
             with col2:
                 st.markdown(f"**Equipe:** {r.equipe or '—'}")
+                st.markdown(f"**Responsável:** {r.responsavel or '—'}")
                 st.markdown(f"**Status:** {r.status}")
                 st.markdown(f"**Classificação:** {r.impacto_rdo}")
             if r.observacoes:
@@ -360,10 +364,11 @@ def _to_word(registros, contrato: str) -> bytes:
     _cabecalho_word(doc, contrato)
     for r in registros:
         doc.add_heading(id_registro(r), level=2)
-        tabela = doc.add_table(rows=3, cols=2)
+        tabela = doc.add_table(rows=4, cols=2)
         tabela.style = "Table Grid"
         dados = [
             ("Frente de Serviço", r.frente_servico, "Equipe", r.equipe or "—"),
+            ("Responsável Contratada", r.responsavel or "—", "", ""),
             ("Disciplina", r.disciplina, "Status", r.status),
             ("Atividade Executada", r.atividade, "Classificação", r.impacto_rdo),
         ]
@@ -420,6 +425,7 @@ def _to_pdf(registros, contrato: str) -> bytes:
         for label, valor in [
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
             ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
+            ("Responsável", r.responsavel or "-"),
             ("Status", r.status), ("Classificação", r.impacto_rdo),
         ]:
             pdf.set_font("Helvetica", "B", 9)
@@ -698,7 +704,8 @@ if fotos:
                         _img_centralizada(_thumbs[_idx])
                         _legendas.append(st.text_input("Legenda", key=f"cap_{_idx}_{fk}", placeholder="Descrição da evidência", label_visibility="collapsed"))
 
-equipe    = st.text_input("Equipe da Contratada", key=f"equipe_{fk}")
+equipe       = st.text_input("Equipe da Contratada", key=f"equipe_{fk}")
+responsavel  = st.text_input("Responsável Contratada", key=f"resp_{fk}")
 status    = st.selectbox("Status", ["Executado", "Em andamento", "Bloqueado", "Não iniciado"], key=f"status_{fk}")
 impacto_rdo = st.selectbox("Classificação do Registro", ["Alta", "Média", "Baixa"], key=f"impacto_{fk}")
 observacoes = st.text_area("Observações adicionais", key=f"obs_{fk}")
@@ -717,6 +724,7 @@ if st.button("Salvar", type="primary"):
             disciplina=disciplina,
             atividade=atividade.strip(),
             equipe=equipe.strip(),
+            responsavel=responsavel.strip(),
             fiscal=fiscal_nome.strip(),
             status=status,
             impacto_rdo=impacto_rdo,
