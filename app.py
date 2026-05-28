@@ -520,6 +520,9 @@ st.markdown("""
 header[data-testid="stHeader"] {visibility: hidden;}
 footer {visibility: hidden;}
 [data-testid="stToolbar"] {display: none;}
+[data-testid="manage-app-button"] {display: none !important;}
+[class*="viewerBadge"] {display: none !important;}
+[data-testid="stBottom"] > div:last-child {display: none !important;}
 </style>
 """, unsafe_allow_html=True)
 
