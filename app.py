@@ -234,6 +234,19 @@ def salvar_registro(registro: RegistroCM) -> None:
     })
     carregar_lista.clear()
 
+
+def excluir_registro(rid: int) -> None:
+    _delete("registros_cm", {"id": _eq(rid)})
+    carregar_lista.clear()
+    _pdf_registro_cached.clear()
+
+
+def excluir_registros(ids: list[int]) -> None:
+    for rid in ids:
+        _delete("registros_cm", {"id": _eq(rid)})
+    carregar_lista.clear()
+    _pdf_registro_cached.clear()
+
 # ─────────────────────────── HELPERS VISUAIS ──────────────────────
 
 THUMB_SIZE = 200
@@ -766,7 +779,7 @@ if st.session_state.show_admin:
             else:
                 contrato_admin = st.selectbox("Contrato", contratos_admin,
                                               key="sel_contrato_admin")
-                tab_c, tab_f, tab_u = st.tabs(["Contratos", "Fiscais", "Unidades"])
+                tab_c, tab_f, tab_u, tab_r = st.tabs(["Contratos", "Fiscais", "Unidades", "Registros"])
 
                 # ── Contratos ──
                 with tab_c:
@@ -846,6 +859,56 @@ if st.session_state.show_admin:
                         if c2.button("🗑", key=f"del_u_{unidade['id']}"):
                             excluir_unidade(unidade["id"])
                             st.rerun()
+
+                # ── Registros ──
+                with tab_r:
+                    _regs_admin = carregar_lista(contrato_admin)
+                    if not _regs_admin:
+                        st.info("Nenhum registro para este contrato.")
+                    else:
+                        st.markdown(f"**{len(_regs_admin)} registro(s) encontrado(s)**")
+
+                        # seleção para exclusão em lote
+                        _sel_ids = []
+                        for _r in _regs_admin:
+                            _rid_label = id_registro(_r)
+                            _ca, _cb = st.columns([1, 9])
+                            _checked = _ca.checkbox("", key=f"adm_sel_{_r.id}", label_visibility="collapsed")
+                            _cb.markdown(
+                                f"**{_rid_label}**  \n"
+                                f"<small>{fmt_data(_r.data_registro)} · {_r.disciplina} · {_r.status}</small>",
+                                unsafe_allow_html=True,
+                            )
+                            if _checked:
+                                _sel_ids.append(_r.id)
+
+                        st.divider()
+                        _col_del, _col_all = st.columns(2)
+
+                        with _col_del:
+                            if _sel_ids:
+                                if st.button(f"🗑 Excluir selecionados ({len(_sel_ids)})",
+                                             type="primary", key="btn_del_sel"):
+                                    excluir_registros(_sel_ids)
+                                    st.success(f"{len(_sel_ids)} registro(s) excluído(s).")
+                                    st.rerun()
+                            else:
+                                st.caption("Marque registros acima para excluir.")
+
+                        with _col_all:
+                            if st.button("🗑 Limpar TODOS os registros", key="btn_del_all"):
+                                st.session_state["confirmar_limpar"] = True
+                            if st.session_state.get("confirmar_limpar"):
+                                st.warning("Tem certeza? Isso apagará **todos** os registros deste contrato.")
+                                _cc1, _cc2 = st.columns(2)
+                                if _cc1.button("Sim, apagar tudo", type="primary", key="btn_confirmar_limpar"):
+                                    excluir_registros([_r.id for _r in _regs_admin])
+                                    st.session_state["confirmar_limpar"] = False
+                                    st.success("Todos os registros foram apagados.")
+                                    st.rerun()
+                                if _cc2.button("Cancelar", key="btn_cancelar_limpar"):
+                                    st.session_state["confirmar_limpar"] = False
+                                    st.rerun()
 
         else:
             with st.form("admin_login"):
