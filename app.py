@@ -731,28 +731,16 @@ _logo_img = (
 
 # Linha logo + botão em flexbox HTML — mesma linha em mobile e desktop
 # O onclick localiza o st.button pelo container stButton (não pelo title, que o Streamlit não expõe)
-st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-  {_logo_img}
-  <button id="hdr-gear"
-    onclick="(function(){{
-      var c=document.querySelector('[data-testid=\\"stButton\\"]');
-      if(c){{c.style.display='none';var b=c.querySelector('button');if(b)b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));}}
-    }})()"
-    style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
-           border-radius:6px;padding:4px 12px;font-size:1.2rem;
-           cursor:pointer;line-height:1.2;flex-shrink:0">&#9776;</button>
-</div>
-<div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>
-<img src="x" onerror="(function(){{
-  function hide(){{var c=document.querySelector('[data-testid=\\"stButton\\"]');if(c){{c.style.display='none';return true;}}return false;}}
-  if(!hide()){{var o=new MutationObserver(function(){{if(hide())o.disconnect();}});o.observe(document.body,{{childList:true,subtree:true}});setTimeout(function(){{o.disconnect();}},10000);}}
-}})()" style="display:none">
-""", unsafe_allow_html=True)
+if _logo_img:
+    st.markdown(_logo_img, unsafe_allow_html=True)
+
+st.markdown(
+    f'<div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>',
+    unsafe_allow_html=True,
+)
 
 _titulo_placeholder = st.empty()
 
-# Botão Streamlit real — oculto pelo JS acima, acionado pelo botão HTML via dispatchEvent
 if st.button("☰", key="btn_gear"):
     st.session_state.show_admin = not st.session_state.show_admin
     st.rerun()
