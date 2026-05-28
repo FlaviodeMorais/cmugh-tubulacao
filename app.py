@@ -589,7 +589,7 @@ _logo_mime, _logo_data = _logo_b64()
 if _logo_data:
     st.markdown(
         f'<img src="data:image/{_logo_mime};base64,{_logo_data}" '
-        f'style="height:30px;object-fit:contain;display:block;margin-bottom:6px">',
+        f'style="height:30px;object-fit:contain;display:block;margin-top:10px;margin-bottom:10px">',
         unsafe_allow_html=True,
     )
 
@@ -744,11 +744,11 @@ else:
 
 lista_registros = carregar_lista(tenant)
 _empreendimento = obter_identificador(tenant)
-_emp = _empreendimento or "SRGE/SI-III/HDTON/CMUGH"
+_emp = (_empreendimento or "SRGE/SI-III/HDTON/CMUGH").upper()
 _titulo_placeholder.markdown(
     f'<h1 style="font-size:1.5rem;margin:0;color:#0D0D0D;white-space:nowrap;'
-    f'overflow:hidden;text-overflow:ellipsis">'
-    f'RO - Registro de Ocorrências&nbsp;&nbsp;|&nbsp;&nbsp;{_emp}</h1>',
+    f'overflow:hidden;text-overflow:ellipsis;text-transform:uppercase">'
+    f'{_emp}&nbsp;&nbsp;|&nbsp;&nbsp;RO - REGISTRO DE OCORRÊNCIAS</h1>',
     unsafe_allow_html=True,
 )
 
