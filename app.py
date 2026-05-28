@@ -801,25 +801,15 @@ else:
     st.info("Nenhum registro encontrado para este contrato.")
 
 _n = f"{lista_registros[0].id:04d}" if len(lista_registros) == 1 else f"{len(lista_registros):04d}-registros"
-col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
+col_exp1, col_exp2 = st.columns(2)
 with col_exp1:
-    st.download_button("⬇ Word (.docx)", data=_to_word(lista_registros, tenant),
-        file_name=f"RO-{_n}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True, disabled=not lista_registros)
-with col_exp2:
     st.download_button("⬇ PDF", data=_to_pdf(lista_registros, tenant),
         file_name=f"RO-{_n}.pdf", mime="application/pdf",
         use_container_width=True, disabled=not lista_registros)
-with col_exp3:
+with col_exp2:
     st.download_button("⬇ Excel (.xlsx)", data=_to_excel(lista_registros),
         file_name=f"RO-{_n}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True, disabled=not lista_registros)
-with col_exp4:
-    st.download_button("⬇ JSON",
-        data=json.dumps(para_exibicao(lista_registros), ensure_ascii=False, indent=2),
-        file_name=f"RO-{_n}.json", mime="application/json",
         use_container_width=True, disabled=not lista_registros)
 
 st.markdown("---")
