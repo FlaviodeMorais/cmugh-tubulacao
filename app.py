@@ -733,18 +733,19 @@ _logo_img = (
 )
 
 st.markdown(f"""
-<div style="margin-bottom:4px">{_logo_img}</div>
-<div style="position:relative;width:100%;border-radius:8px;overflow:hidden;margin-bottom:8px">
-  {_banner_img}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+  {_logo_img}
   <button id="hdr-admin-btn"
     onclick="(function(){{
       var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
       if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
     }})()"
-    style="position:absolute;top:10px;right:12px;z-index:2;
-           background:rgba(0,0,0,0.40);color:#fff;border:none;
-           border-radius:6px;padding:5px 12px;font-size:1.25rem;
-           cursor:pointer;backdrop-filter:blur(4px);line-height:1.2">☰</button>
+    style="background:transparent;color:#0D0D0D;border:1px solid #CCC;
+           border-radius:6px;padding:4px 12px;font-size:1.25rem;
+           cursor:pointer;line-height:1.2">☰</button>
+</div>
+<div style="width:100%;border-radius:8px;overflow:hidden;margin-bottom:8px">
+  {_banner_img}
 </div>
 """, unsafe_allow_html=True)
 
