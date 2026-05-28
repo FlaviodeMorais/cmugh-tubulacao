@@ -664,9 +664,14 @@ button[kind="primary"] p {
 }
 .icon-btn button:hover { opacity: 0.6 !important; }
 
-/* Container do botão gear completamente oculto — JS do header o aciona via dispatchEvent */
-div[data-testid="stButton"]:has(button[title="Configurações / Admin"]) {
-    display: none !important;
+/* Botão ☰ do cabeçalho: sem borda, sem fundo */
+button[data-testid="baseButton-secondary"][title="Configurações / Admin"] {
+    background: transparent !important;
+    border: 1px solid #CCC !important;
+    font-size: 1.2rem !important;
+    padding: 4px 10px !important;
+    min-height: unset !important;
+    line-height: 1.2 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -732,29 +737,21 @@ _logo_img = (
     if _logo_data else ""
 )
 
-st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-  {_logo_img}
-  <button id="hdr-admin-btn"
-    onclick="(function(){{
-      var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
-      if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
-    }})()"
-    style="background:transparent;color:#0D0D0D;border:1px solid #CCC;
-           border-radius:6px;padding:4px 12px;font-size:1.25rem;
-           cursor:pointer;line-height:1.2">☰</button>
-</div>
-<div style="width:100%;border-radius:8px;overflow:hidden;margin-bottom:8px">
-  {_banner_img}
-</div>
-""", unsafe_allow_html=True)
+_col_logo, _col_gear = st.columns([11, 1])
+with _col_logo:
+    if _logo_img:
+        st.markdown(_logo_img, unsafe_allow_html=True)
+with _col_gear:
+    if st.button("☰", help="Configurações / Admin", key="btn_gear"):
+        st.session_state.show_admin = not st.session_state.show_admin
+        st.rerun()
+
+st.markdown(
+    f'<div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>',
+    unsafe_allow_html=True,
+)
 
 _titulo_placeholder = st.empty()
-
-# Botão gear oculto via CSS — o JS do header o aciona
-if st.button("☰", help="Configurações / Admin", key="btn_gear"):
-    st.session_state.show_admin = not st.session_state.show_admin
-    st.rerun()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
