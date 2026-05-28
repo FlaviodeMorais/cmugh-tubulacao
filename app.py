@@ -507,8 +507,8 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
         items = _parse_evidencias(r.evidencias)
         if items:
             thumbs = [(img_thumb(i["foto"]), i["legenda"]) for i in items]
-            col_w = 80
-            row_h = col_w + 14  # 80mm imagem + 14mm legenda
+            col_w = 60
+            row_h = col_w + 14  # 60mm imagem + 14mm legenda
             page_bottom = pdf.h - pdf.b_margin
             num_rows = (len(thumbs) + 1) // 2
             pdf.ln(2)
