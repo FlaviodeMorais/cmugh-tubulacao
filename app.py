@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import io
 import json
 import re
@@ -18,6 +19,15 @@ from PIL import Image
 import streamlit as st
 
 DB_FILE = Path("cm_saas.db")
+
+# Credenciais do admin master (senha armazenada como SHA-256)
+_ADMIN_USER = "Admin"
+_ADMIN_HASH = hashlib.sha256("979101Fm$".encode()).hexdigest()
+
+
+def _verificar_admin(usuario: str, senha: str) -> bool:
+    return (usuario == _ADMIN_USER and
+            hashlib.sha256(senha.encode()).hexdigest() == _ADMIN_HASH)
 
 DISCIPLINAS = [
     "Tubulação", "Dinâmicos", "Estáticos", "Civil", "Estruturas Metálicas",
@@ -507,88 +517,121 @@ st.set_page_config(page_title="RO - Registro de Ocorrências", layout="centered"
 
 # ─────────────────────────── SIDEBAR ADMIN ────────────────────────
 
-if "admin_contrato" not in st.session_state:
-    st.session_state.admin_contrato = None
+if "admin_logado" not in st.session_state:
+    st.session_state.admin_logado = False
 
 with st.sidebar:
     st.markdown("### Área Admin")
 
-    if st.session_state.admin_contrato:
-        contrato_admin = st.session_state.admin_contrato
-        st.success(f"Contrato: **{contrato_admin}**")
+    if st.session_state.admin_logado:
+        st.success("Admin conectado")
         if st.button("Sair", key="admin_sair"):
-            st.session_state.admin_contrato = None
+            st.session_state.admin_logado = False
             st.rerun()
 
-        tab_f, tab_u = st.tabs(["Fiscais", "Unidades"])
-
-        # ── Fiscais ──
-        with tab_f:
-            st.markdown("**Cadastrar Fiscal**")
-            with st.form("form_fiscal"):
-                f_nome  = st.text_input("Nome do Fiscal de Campo")
-                f_chave = st.text_input("Chave")
-                f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
-                f_email = st.text_input("E-mail do Fiscal")
-                if st.form_submit_button("Adicionar"):
-                    if f_nome.strip():
-                        adicionar_fiscal(contrato_admin, f_nome.strip(),
-                                         f_chave.strip(), f_disc, f_email.strip())
-                        st.success("Fiscal adicionado.")
-                        st.rerun()
+        # Seleção do contrato a gerenciar
+        contratos_admin = listar_contratos()
+        if not contratos_admin:
+            st.info("Nenhum contrato cadastrado ainda.")
+            with st.form("form_novo_contrato"):
+                nc_num   = st.text_input("Nº do Contrato")
+                nc_senha = st.text_input("Senha do Contrato", type="password")
+                if st.form_submit_button("Criar Contrato"):
+                    if nc_num.strip() and nc_senha.strip():
+                        if criar_contrato(nc_num.strip(), nc_senha.strip()):
+                            st.success("Contrato criado.")
+                            st.rerun()
+                        else:
+                            st.error("Contrato já existe.")
                     else:
-                        st.error("Informe o nome do fiscal.")
+                        st.error("Preencha todos os campos.")
+        else:
+            tab_c, tab_f, tab_u = st.tabs(["Contratos", "Fiscais", "Unidades"])
 
-            st.markdown("**Fiscais cadastrados**")
-            for fiscal in listar_fiscais(contrato_admin):
-                c1, c2 = st.columns([4, 1])
-                c1.write(f"{fiscal['nome']} | {fiscal.get('email') or fiscal['chave']}")
-                if c2.button("🗑", key=f"del_f_{fiscal['id']}"):
-                    excluir_fiscal(fiscal["id"])
-                    st.rerun()
+            # ── Contratos ──
+            with tab_c:
+                st.markdown("**Novo Contrato**")
+                with st.form("form_novo_contrato"):
+                    nc_num   = st.text_input("Nº do Contrato")
+                    nc_senha = st.text_input("Senha do Contrato", type="password")
+                    if st.form_submit_button("Criar"):
+                        if nc_num.strip() and nc_senha.strip():
+                            if criar_contrato(nc_num.strip(), nc_senha.strip()):
+                                st.success("Contrato criado.")
+                                st.rerun()
+                            else:
+                                st.error("Contrato já existe.")
+                        else:
+                            st.error("Preencha todos os campos.")
 
-        # ── Unidades ──
-        with tab_u:
-            st.markdown("**Cadastrar Unidade**")
-            with st.form("form_unidade"):
-                u_nome = st.text_input("Nome da Unidade")
-                if st.form_submit_button("Adicionar"):
-                    if u_nome.strip():
-                        adicionar_unidade(contrato_admin, u_nome.strip())
-                        st.success("Unidade adicionada.")
+                st.markdown("**Contratos cadastrados**")
+                for _c in contratos_admin:
+                    c1, c2 = st.columns([4, 1])
+                    c1.write(_c)
+                    if c2.button("🗑", key=f"del_c_{_c}"):
+                        excluir_contrato(_c)
                         st.rerun()
-                    else:
-                        st.error("Informe o nome da unidade.")
 
-            st.markdown("**Unidades cadastradas**")
-            for unidade in listar_unidades(contrato_admin):
-                c1, c2 = st.columns([4, 1])
-                c1.write(unidade["nome"])
-                if c2.button("🗑", key=f"del_u_{unidade['id']}"):
-                    excluir_unidade(unidade["id"])
-                    st.rerun()
+            # Contrato selecionado para gerenciar fiscais/unidades
+            contrato_admin = st.selectbox("Gerenciar contrato", contratos_admin,
+                                          key="sel_contrato_admin")
+
+            # ── Fiscais ──
+            with tab_f:
+                st.markdown("**Cadastrar Fiscal**")
+                with st.form("form_fiscal"):
+                    f_nome  = st.text_input("Nome do Fiscal de Campo")
+                    f_chave = st.text_input("Chave")
+                    f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
+                    f_email = st.text_input("E-mail do Fiscal")
+                    if st.form_submit_button("Adicionar"):
+                        if f_nome.strip():
+                            adicionar_fiscal(contrato_admin, f_nome.strip(),
+                                             f_chave.strip(), f_disc, f_email.strip())
+                            st.success("Fiscal adicionado.")
+                            st.rerun()
+                        else:
+                            st.error("Informe o nome do fiscal.")
+
+                st.markdown("**Fiscais cadastrados**")
+                for fiscal in listar_fiscais(contrato_admin):
+                    c1, c2 = st.columns([4, 1])
+                    c1.write(f"{fiscal['nome']} | {fiscal.get('email') or fiscal['chave']}")
+                    if c2.button("🗑", key=f"del_f_{fiscal['id']}"):
+                        excluir_fiscal(fiscal["id"])
+                        st.rerun()
+
+            # ── Unidades ──
+            with tab_u:
+                st.markdown("**Cadastrar Unidade**")
+                with st.form("form_unidade"):
+                    u_nome = st.text_input("Nome da Unidade")
+                    if st.form_submit_button("Adicionar"):
+                        if u_nome.strip():
+                            adicionar_unidade(contrato_admin, u_nome.strip())
+                            st.success("Unidade adicionada.")
+                            st.rerun()
+                        else:
+                            st.error("Informe o nome da unidade.")
+
+                st.markdown("**Unidades cadastradas**")
+                for unidade in listar_unidades(contrato_admin):
+                    c1, c2 = st.columns([4, 1])
+                    c1.write(unidade["nome"])
+                    if c2.button("🗑", key=f"del_u_{unidade['id']}"):
+                        excluir_unidade(unidade["id"])
+                        st.rerun()
 
     else:
-        st.markdown("**Login**")
         with st.form("admin_login"):
-            _num   = st.text_input("Nº do Contrato")
+            _user  = st.text_input("Usuário")
             _senha = st.text_input("Senha", type="password")
-            _novo  = st.checkbox("Cadastrar novo contrato")
             if st.form_submit_button("Entrar"):
-                if not _num.strip() or not _senha.strip():
-                    st.error("Preencha contrato e senha.")
-                elif _novo:
-                    if criar_contrato(_num.strip(), _senha.strip()):
-                        st.session_state.admin_contrato = _num.strip()
-                        st.rerun()
-                    else:
-                        st.error("Contrato já existe. Faça login sem marcar 'Cadastrar'.")
+                if _verificar_admin(_user.strip(), _senha):
+                    st.session_state.admin_logado = True
+                    st.rerun()
                 else:
-                    if verificar_senha(_num.strip(), _senha.strip()):
-                        st.session_state.admin_contrato = _num.strip()
-                        st.rerun()
-                    else:
-                        st.error("Contrato ou senha inválidos.")
+                    st.error("Usuário ou senha inválidos.")
 
 # ─────────────────────────── CABEÇALHO ───────────────────────────
 
