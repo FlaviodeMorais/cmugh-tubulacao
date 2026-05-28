@@ -751,4 +751,3 @@ if lista_registros:
                    f"RO-{_n}.xlsx",
                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                    f"xlsx_{_n}")
-    st.caption("No celular: escolha WhatsApp, e-mail, Drive ou qualquer app. No desktop: abre/baixa o arquivo.")
