@@ -549,13 +549,11 @@ if st.session_state.admin_logado:
 
 @st.cache_resource
 def _banner_b64() -> str:
-    """Carrega header.jpg, redimensiona para banner e retorna base64."""
     from pathlib import Path
     p = Path("header.jpg")
     if not p.exists():
         return ""
     img = Image.open(p).convert("RGB")
-    # crop central para proporção 6:1 (banner largo)
     w, h = img.size
     target_h = max(1, w // 6)
     if h > target_h:
@@ -565,6 +563,16 @@ def _banner_b64() -> str:
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=82)
     return base64.b64encode(buf.getvalue()).decode()
+
+@st.cache_resource
+def _logo_b64() -> str:
+    from pathlib import Path
+    for nome in ("petrobras.jpg", "petrobras.png", "logo.png", "logo.jpg"):
+        p = Path(nome)
+        if p.exists():
+            mime = "png" if nome.endswith(".png") else "jpeg"
+            return mime, base64.b64encode(p.read_bytes()).decode()
+    return "", ""
 
 _b64 = _banner_b64()
 if _b64:
@@ -576,21 +584,24 @@ if _b64:
         unsafe_allow_html=True,
     )
 
-col_titulo, col_gear = st.columns([11, 1])
-with col_titulo:
+_logo_mime, _logo_data = _logo_b64()
+
+if _logo_data:
     st.markdown(
-        '<h1 style="font-size:1.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-        'RO - Registro de Ocorrências</h1>',
+        f'<img src="data:image/{_logo_mime};base64,{_logo_data}" '
+        f'style="height:30px;object-fit:contain;display:block;margin-bottom:6px">',
         unsafe_allow_html=True,
     )
+
+col_titulo, col_gear = st.columns([11, 1])
+with col_titulo:
+    _titulo_placeholder = st.empty()
 with col_gear:
-    st.markdown("<div style='padding-top:12px'>", unsafe_allow_html=True)
+    st.markdown("<div style='padding-top:4px'>", unsafe_allow_html=True)
     if st.button("⚙️", help="Configurações / Admin", key="btn_gear"):
         st.session_state.show_admin = not st.session_state.show_admin
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
-
-_caption_placeholder = st.empty()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
@@ -733,7 +744,13 @@ else:
 
 lista_registros = carregar_lista(tenant)
 _empreendimento = obter_identificador(tenant)
-_caption_placeholder.caption(_empreendimento or "SRGE/SI-III/HDTON/CMUGH")
+_emp = _empreendimento or "SRGE/SI-III/HDTON/CMUGH"
+_titulo_placeholder.markdown(
+    f'<h1 style="font-size:1.5rem;margin:0;color:#0D0D0D;white-space:nowrap;'
+    f'overflow:hidden;text-overflow:ellipsis">'
+    f'RO - Registro de Ocorrências&nbsp;&nbsp;|&nbsp;&nbsp;{_emp}</h1>',
+    unsafe_allow_html=True,
+)
 
 # ─────────────────────────── 1) FISCALIZAÇÃO DE CAMPO ───────────
 
