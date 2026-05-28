@@ -3,11 +3,9 @@ import hashlib
 import io
 import json
 import re
-import sqlite3
 import textwrap
 from dataclasses import dataclass, asdict
 from datetime import date
-from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -16,10 +14,9 @@ from docx.shared import Cm, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from fpdf import FPDF
 from PIL import Image
+from supabase import create_client, Client
 
 import streamlit as st
-
-DB_FILE = Path("cm_saas.db")
 
 # Credenciais do admin master (senha armazenada como SHA-256)
 _ADMIN_USER = "Admin"
@@ -56,208 +53,110 @@ class RegistroCM:
     evidencias: str = ""
     chave: str = ""
 
-# ─────────────────────────── BANCO DE DADOS ───────────────────────
+# ─────────────────────────── BANCO DE DADOS (Supabase) ───────────────────────
 
-def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+@st.cache_resource
+def get_supabase() -> Client:
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
 
 
 def init_db() -> None:
-    with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS registros_cm (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tenant TEXT NOT NULL,
-                data_registro TEXT NOT NULL,
-                obra TEXT NOT NULL,
-                frente_servico TEXT NOT NULL,
-                disciplina TEXT NOT NULL,
-                atividade TEXT NOT NULL,
-                equipe TEXT,
-                responsavel TEXT DEFAULT '',
-                fiscal TEXT NOT NULL,
-                status TEXT NOT NULL,
-                impacto_rdo TEXT NOT NULL,
-                observacoes TEXT,
-                evidencias TEXT DEFAULT '',
-                chave TEXT DEFAULT ''
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS contratos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                numero TEXT UNIQUE NOT NULL,
-                senha_admin TEXT NOT NULL,
-                identificador TEXT DEFAULT '',
-                email_destino TEXT DEFAULT '',
-                smtp_servidor TEXT DEFAULT '',
-                smtp_porta INTEGER DEFAULT 587,
-                smtp_usuario TEXT DEFAULT '',
-                smtp_senha TEXT DEFAULT ''
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS fiscais (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                contrato TEXT NOT NULL,
-                nome TEXT NOT NULL,
-                matricula TEXT DEFAULT '',
-                chave TEXT DEFAULT '',
-                disciplina TEXT DEFAULT '',
-                email TEXT DEFAULT ''
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS unidades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                contrato TEXT NOT NULL,
-                nome TEXT NOT NULL
-            )
-        """)
-        for col, definition in [
-            ("evidencias",   "TEXT DEFAULT ''"),
-            ("chave",        "TEXT DEFAULT ''"),
-            ("responsavel",  "TEXT DEFAULT ''"),
-        ]:
-            try:
-                conn.execute(f"ALTER TABLE registros_cm ADD COLUMN {col} {definition}")
-            except sqlite3.OperationalError:
-                pass
-        try:
-            conn.execute("ALTER TABLE fiscais ADD COLUMN email TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
-            pass
-        for col, defn in [
-            ("identificador", "TEXT DEFAULT ''"),
-            ("email_destino", "TEXT DEFAULT ''"),
-            ("smtp_servidor", "TEXT DEFAULT ''"),
-            ("smtp_porta",    "INTEGER DEFAULT 587"),
-            ("smtp_usuario",  "TEXT DEFAULT ''"),
-            ("smtp_senha",    "TEXT DEFAULT ''"),
-        ]:
-            try:
-                conn.execute(f"ALTER TABLE contratos ADD COLUMN {col} {defn}")
-            except sqlite3.OperationalError:
-                pass
+    pass  # tabelas já criadas no Supabase
 
 
 # ── contratos ──
 
 def listar_contratos() -> List[str]:
-    with get_conn() as conn:
-        rows = conn.execute("SELECT numero FROM contratos ORDER BY numero").fetchall()
-    return [r["numero"] for r in rows]
+    res = get_supabase().table("contratos").select("numero").order("numero").execute()
+    return [r["numero"] for r in res.data]
 
 
 def criar_contrato(numero: str, senha: str, identificador: str = "") -> bool:
     try:
-        with get_conn() as conn:
-            conn.execute(
-                "INSERT INTO contratos (numero, senha_admin, identificador) VALUES (?, ?, ?)",
-                (numero, senha, identificador),
-            )
+        get_supabase().table("contratos").insert(
+            {"numero": numero, "senha_admin": senha, "identificador": identificador}
+        ).execute()
         return True
-    except sqlite3.IntegrityError:
+    except Exception:
         return False
 
 
 def obter_identificador(numero: str) -> str:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT identificador FROM contratos WHERE numero=?", (numero,)
-        ).fetchone()
-    return (row["identificador"] or "") if row else ""
+    res = get_supabase().table("contratos").select("identificador").eq("numero", numero).execute()
+    return res.data[0].get("identificador", "") if res.data else ""
 
 
 def atualizar_identificador(numero: str, identificador: str) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE contratos SET identificador=? WHERE numero=?", (identificador, numero)
-        )
+    get_supabase().table("contratos").update({"identificador": identificador}).eq("numero", numero).execute()
 
 
 def verificar_senha(numero: str, senha: str) -> bool:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT id FROM contratos WHERE numero=? AND senha_admin=?", (numero, senha)
-        ).fetchone()
-    return row is not None
+    res = get_supabase().table("contratos").select("id").eq("numero", numero).eq("senha_admin", senha).execute()
+    return len(res.data) > 0
 
 
 def excluir_contrato(numero: str) -> None:
-    with get_conn() as conn:
-        conn.execute("DELETE FROM contratos WHERE numero=?", (numero,))
+    get_supabase().table("contratos").delete().eq("numero", numero).execute()
 
 
 # ── fiscais ──
 
 def listar_fiscais(contrato: str) -> list:
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM fiscais WHERE contrato=? ORDER BY nome", (contrato,)
-        ).fetchall()
-    return [dict(r) for r in rows]
+    res = get_supabase().table("fiscais").select("*").eq("contrato", contrato).order("nome").execute()
+    return res.data
 
 
 def adicionar_fiscal(contrato, nome, chave, disciplina, email="") -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO fiscais (contrato, nome, chave, disciplina, email) VALUES (?,?,?,?,?)",
-            (contrato, nome, chave, disciplina, email),
-        )
+    get_supabase().table("fiscais").insert(
+        {"contrato": contrato, "nome": nome, "chave": chave, "disciplina": disciplina, "email": email}
+    ).execute()
 
 
 def excluir_fiscal(fid: int) -> None:
-    with get_conn() as conn:
-        conn.execute("DELETE FROM fiscais WHERE id=?", (fid,))
+    get_supabase().table("fiscais").delete().eq("id", fid).execute()
 
 
 # ── unidades ──
 
 def listar_unidades(contrato: str) -> list:
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM unidades WHERE contrato=? ORDER BY nome", (contrato,)
-        ).fetchall()
-    return [dict(r) for r in rows]
+    res = get_supabase().table("unidades").select("*").eq("contrato", contrato).order("nome").execute()
+    return res.data
 
 
 def adicionar_unidade(contrato: str, nome: str) -> None:
-    with get_conn() as conn:
-        conn.execute("INSERT INTO unidades (contrato, nome) VALUES (?,?)", (contrato, nome))
+    get_supabase().table("unidades").insert({"contrato": contrato, "nome": nome}).execute()
 
 
 def excluir_unidade(uid: int) -> None:
-    with get_conn() as conn:
-        conn.execute("DELETE FROM unidades WHERE id=?", (uid,))
+    get_supabase().table("unidades").delete().eq("id", uid).execute()
 
 
 # ── registros ──
 
 def carregar_lista(tenant: str) -> List[RegistroCM]:
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM registros_cm WHERE tenant=? ORDER BY id DESC", (tenant,)
-        ).fetchall()
-    return [RegistroCM(**dict(r)) for r in rows]
+    res = get_supabase().table("registros_cm").select("*").eq("tenant", tenant).order("id", desc=True).execute()
+    return [RegistroCM(**r) for r in res.data]
 
 
 def salvar_registro(registro: RegistroCM) -> None:
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO registros_cm (
-                tenant, data_registro, obra, frente_servico, disciplina, atividade,
-                equipe, responsavel, fiscal, status, impacto_rdo, observacoes, evidencias, chave
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            registro.tenant, registro.data_registro, registro.obra,
-            registro.frente_servico, registro.disciplina, registro.atividade,
-            registro.equipe, registro.responsavel, registro.fiscal, registro.status,
-            registro.impacto_rdo, registro.observacoes,
-            registro.evidencias, registro.chave,
-        ))
+    get_supabase().table("registros_cm").insert({
+        "tenant":        registro.tenant,
+        "data_registro": registro.data_registro,
+        "obra":          registro.obra,
+        "frente_servico": registro.frente_servico,
+        "disciplina":    registro.disciplina,
+        "atividade":     registro.atividade,
+        "equipe":        registro.equipe,
+        "responsavel":   registro.responsavel,
+        "fiscal":        registro.fiscal,
+        "status":        registro.status,
+        "impacto_rdo":   registro.impacto_rdo,
+        "observacoes":   registro.observacoes,
+        "evidencias":    registro.evidencias,
+        "chave":         registro.chave,
+    }).execute()
 
 # ─────────────────────────── HELPERS VISUAIS ──────────────────────
 
