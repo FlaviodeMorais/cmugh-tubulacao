@@ -673,7 +673,7 @@ button[kind="primary"] p {
 if "admin_logado" not in st.session_state:
     st.session_state.admin_logado = False
 if "show_admin" not in st.session_state:
-    st.session_state.show_admin = False
+    st.session_state.show_admin = st.query_params.get("adm") == "1"
 
 # Mostra Manage App apenas se admin estiver autenticado
 if st.session_state.admin_logado:
@@ -729,55 +729,27 @@ _logo_img = (
     if _logo_data else ""
 )
 
-# Linha logo + botão em flexbox HTML → mesma linha em mobile e desktop
+_adm_href = "?adm=1" if not st.session_state.show_admin else "?"
+
+# Linha logo + botão em flexbox HTML — mesma linha em mobile e desktop, sem botão Streamlit duplicado
 st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:space-between;
-            margin-bottom:6px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
   {_logo_img}
-  <button onclick="(function(){{
-      var b=document.querySelector('button[title=\\"Configurações / Admin\\"]');
-      if(b) b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
-    }})()"
-    style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
-           border-radius:6px;padding:4px 12px;font-size:1.2rem;
-           cursor:pointer;line-height:1.2;flex-shrink:0">☰</button>
+  <a href="{_adm_href}"
+     style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
+            border-radius:6px;padding:4px 12px;font-size:1.2rem;
+            cursor:pointer;line-height:1.2;text-decoration:none;flex-shrink:0">☰</a>
 </div>
 <div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>
 """, unsafe_allow_html=True)
 
 _titulo_placeholder = st.empty()
 
-# Botão Streamlit oculto — acionado pelo HTML acima via dispatchEvent
-if st.button("☰", help="Configurações / Admin", key="btn_gear"):
-    st.session_state.show_admin = not st.session_state.show_admin
-    st.rerun()
-
-# JS via onerror (executa nativamente no browser) — oculta o container do botão Streamlit
-st.markdown("""
-<img src="x" onerror="(function(){
-  function hide(){
-    var btns=document.querySelectorAll('button');
-    for(var i=0;i<btns.length;i++){
-      if(btns[i].title==='Configurações / Admin'){
-        var el=btns[i];
-        while(el.parentElement){
-          el=el.parentElement;
-          if(el.getAttribute&&el.getAttribute('data-testid')==='stButton'){
-            el.style.cssText='display:none!important';
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-  if(!hide()){
-    var o=new MutationObserver(function(){if(hide())o.disconnect();});
-    o.observe(document.body,{childList:true,subtree:true});
-    setTimeout(function(){o.disconnect();},8000);
-  }
-})()" style="display:none">
-""", unsafe_allow_html=True)
+# Lê query param para sincronizar estado (após navegação pelo link ☰)
+if st.query_params.get("adm") == "1" and not st.session_state.show_admin:
+    st.session_state.show_admin = True
+elif st.query_params.get("adm") != "1" and st.session_state.show_admin:
+    st.session_state.show_admin = False
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
@@ -791,6 +763,7 @@ if st.session_state.show_admin:
             if col_sair.button("Sair", key="admin_sair"):
                 st.session_state.admin_logado = False
                 st.session_state.show_admin = False
+                st.query_params.clear()
                 st.rerun()
 
             contratos_admin = listar_contratos()
