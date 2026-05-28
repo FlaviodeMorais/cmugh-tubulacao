@@ -455,31 +455,41 @@ class _PDF(FPDF):
         self.cell(0, 8, f"Pag. {self.page_no()}", align="C")
 
 
+def _pdf_txt(text: str) -> str:
+    """Sanitiza texto para Latin-1 (Helvetica no fpdf2)."""
+    return (str(text or "")
+            .replace("—", "-").replace("–", "-")
+            .replace("’", "'").replace("‘", "'")
+            .replace("“", '"').replace("”", '"')
+            .replace("…", "...").replace("°", "o")
+            .encode("latin-1", errors="replace").decode("latin-1"))
+
+
 def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
     pdf = _PDF(contrato, empreendimento)
     pdf.set_auto_page_break(auto=True, margin=15)
     for r in registros:
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 7, id_registro(r), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 7, _pdf_txt(id_registro(r)), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
         for label, valor in [
             ("Fiscal", r.fiscal or "-"),
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
             ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
-            ("Responsável", r.responsavel or "-"),
-            ("Status", r.status), ("Classificação", r.impacto_rdo),
+            ("Responsavel", r.responsavel or "-"),
+            ("Status", r.status), ("Classificacao", r.impacto_rdo),
         ]:
             pdf.set_font("Helvetica", "B", 9)
             pdf.write(6, f"{label}: ")
             pdf.set_font("Helvetica", "", 9)
-            pdf.write(6, valor)
+            pdf.write(6, _pdf_txt(valor))
             pdf.ln(6)
         if r.observacoes:
             pdf.set_font("Helvetica", "B", 9)
             pdf.write(6, "Obs: ")
             pdf.set_font("Helvetica", "", 9)
-            pdf.write(6, r.observacoes)
+            pdf.write(6, _pdf_txt(r.observacoes))
             pdf.ln(6)
         items = _parse_evidencias(r.evidencias)
         if items:
@@ -506,7 +516,7 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
                     pdf.image(io.BytesIO(thumb_data), x=x, y=y_row, w=col_w)
                     pdf.set_xy(x, y_row + col_w + 1)
                     pdf.set_font("Helvetica", "I", 7)
-                    lines = textwrap.wrap(legenda, width=42)[:2]
+                    lines = textwrap.wrap(_pdf_txt(legenda), width=42)[:2]
                     pdf.multi_cell(col_w, 3.5, "\n".join(lines), align="C")
                 pdf.set_xy(x0, y_row + row_h)
     return bytes(pdf.output())
