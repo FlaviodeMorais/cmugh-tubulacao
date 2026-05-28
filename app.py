@@ -736,15 +736,8 @@ st.markdown(f"""
   {_logo_img}
   <button id="hdr-gear"
     onclick="(function(){{
-      var cs=document.querySelectorAll('[data-testid=\\"stButton\\"]');
-      for(var i=0;i<cs.length;i++){{
-        var b=cs[i].querySelector('button');
-        if(b&&b.textContent.trim()==='\\u2630'){{
-          cs[i].style.display='none';
-          b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));
-          break;
-        }}
-      }}
+      var c=document.querySelector('[data-testid=\\"stButton\\"]');
+      if(c){{c.style.display='none';var b=c.querySelector('button');if(b)b.dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true}}));}}
     }})()"
     style="background:transparent;border:1px solid #CCC;color:#0D0D0D;
            border-radius:6px;padding:4px 12px;font-size:1.2rem;
@@ -752,19 +745,8 @@ st.markdown(f"""
 </div>
 <div style="border-radius:8px;overflow:hidden;margin-bottom:8px">{_banner_img}</div>
 <img src="x" onerror="(function(){{
-  function hide(){{
-    var cs=document.querySelectorAll('[data-testid=\\"stButton\\"]');
-    for(var i=0;i<cs.length;i++){{
-      var b=cs[i].querySelector('button');
-      if(b&&b.textContent.trim()==='\\u2630'){{cs[i].style.display='none';return true;}}
-    }}
-    return false;
-  }}
-  if(!hide()){{
-    var o=new MutationObserver(function(){{if(hide())o.disconnect();}});
-    o.observe(document.body,{{childList:true,subtree:true}});
-    setTimeout(function(){{o.disconnect();}},10000);
-  }}
+  function hide(){{var c=document.querySelector('[data-testid=\\"stButton\\"]');if(c){{c.style.display='none';return true;}}return false;}}
+  if(!hide()){{var o=new MutationObserver(function(){{if(hide())o.disconnect();}});o.observe(document.body,{{childList:true,subtree:true}});setTimeout(function(){{o.disconnect();}},10000);}}
 }})()" style="display:none">
 """, unsafe_allow_html=True)
 
