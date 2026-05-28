@@ -561,7 +561,11 @@ async function sf_{fid}(){{
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
-st.set_page_config(page_title="RO - Registro de Ocorrências", layout="centered")
+st.set_page_config(
+    page_title="RO - Registro de Ocorrências",
+    layout="centered",
+    page_icon="favicon.png",
+)
 st.markdown("""
 <style>
 /* ── ocultar chrome do Streamlit ── */
