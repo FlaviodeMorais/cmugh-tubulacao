@@ -445,12 +445,21 @@ class _PDF(FPDF):
         self._logo_bytes = base64.b64decode(_b64) if _b64 else None
 
     def header(self):
-        logo_h_mm = 9.3  # ≈ 28px a 96dpi
+        logo_h_mm = 9.3   # tamanho físico ≈ 28px visual
+        logo_dpi  = 150
         if self._logo_bytes:
             try:
-                _lw, _lh = Image.open(io.BytesIO(self._logo_bytes)).size
+                _pil = Image.open(io.BytesIO(self._logo_bytes)).convert("RGB")
+                _lw, _lh = _pil.size
+                # redimensiona para 150dpi no tamanho físico alvo
+                _tgt_h = round((logo_h_mm / 25.4) * logo_dpi)
+                _tgt_w = round(_tgt_h * _lw / _lh)
+                _pil = _pil.resize((_tgt_w, _tgt_h), Image.LANCZOS)
+                _buf = io.BytesIO()
+                _pil.save(_buf, format="JPEG", quality=95, dpi=(logo_dpi, logo_dpi))
+                _buf.seek(0)
                 _lw_mm = logo_h_mm * (_lw / _lh)
-                self.image(io.BytesIO(self._logo_bytes),
+                self.image(_buf,
                            x=self.w - self.r_margin - _lw_mm,
                            y=self.t_margin,
                            h=logo_h_mm)
