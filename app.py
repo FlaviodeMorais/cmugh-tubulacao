@@ -588,7 +588,7 @@ if st.session_state.admin_logado:
 @st.cache_resource
 def _banner_b64() -> str:
     from pathlib import Path
-    p = Path("header.jpg")
+    p = Path(__file__).parent / "header.jpg"
     if not p.exists():
         return ""
     img = Image.open(p).convert("RGB")
@@ -605,8 +605,9 @@ def _banner_b64() -> str:
 @st.cache_resource
 def _logo_b64() -> str:
     from pathlib import Path
-    for nome in ("petrobras.jpg", "petrobras.png", "logo.png", "logo.jpg"):
-        p = Path(nome)
+    base = Path(__file__).parent
+    for nome in ("PETROBRAS.jpg", "petrobras.jpg", "petrobras.png", "logo.png", "logo.jpg"):
+        p = base / nome
         if p.exists():
             mime = "png" if nome.endswith(".png") else "jpeg"
             return mime, base64.b64encode(p.read_bytes()).decode()
