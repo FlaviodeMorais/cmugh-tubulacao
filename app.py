@@ -698,7 +698,7 @@ fiscal_chave = fiscal_selecionado.get("chave", "")
 
 # ─────────────────────────── 2) REGISTROS RDOe ───────────────────
 
-st.subheader("2) Registros RDOe")
+st.subheader("2) Registros de Ocorrências")
 
 if "fk" not in st.session_state:
     st.session_state.fk = 0
