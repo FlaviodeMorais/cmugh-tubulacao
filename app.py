@@ -89,6 +89,7 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 numero TEXT UNIQUE NOT NULL,
                 senha_admin TEXT NOT NULL,
+                identificador TEXT DEFAULT '',
                 email_destino TEXT DEFAULT '',
                 smtp_servidor TEXT DEFAULT '',
                 smtp_porta INTEGER DEFAULT 587,
@@ -128,6 +129,7 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
         for col, defn in [
+            ("identificador", "TEXT DEFAULT ''"),
             ("email_destino", "TEXT DEFAULT ''"),
             ("smtp_servidor", "TEXT DEFAULT ''"),
             ("smtp_porta",    "INTEGER DEFAULT 587"),
@@ -148,13 +150,31 @@ def listar_contratos() -> List[str]:
     return [r["numero"] for r in rows]
 
 
-def criar_contrato(numero: str, senha: str) -> bool:
+def criar_contrato(numero: str, senha: str, identificador: str = "") -> bool:
     try:
         with get_conn() as conn:
-            conn.execute("INSERT INTO contratos (numero, senha_admin) VALUES (?, ?)", (numero, senha))
+            conn.execute(
+                "INSERT INTO contratos (numero, senha_admin, identificador) VALUES (?, ?, ?)",
+                (numero, senha, identificador),
+            )
         return True
     except sqlite3.IntegrityError:
         return False
+
+
+def obter_identificador(numero: str) -> str:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT identificador FROM contratos WHERE numero=?", (numero,)
+        ).fetchone()
+    return (row["identificador"] or "") if row else ""
+
+
+def atualizar_identificador(numero: str, identificador: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE contratos SET identificador=? WHERE numero=?", (identificador, numero)
+        )
 
 
 def verificar_senha(numero: str, senha: str) -> bool:
@@ -354,24 +374,25 @@ def _to_excel(registros) -> bytes:
     return buf.getvalue()
 
 
-def _cabecalho_word(doc: Document, contrato: str) -> None:
+def _cabecalho_word(doc: Document, contrato: str, empreendimento: str = "") -> None:
     t = doc.add_paragraph()
     run = t.add_run("RO - Registro de Ocorrências")
     run.bold = True
     run.font.size = Pt(14)
     sub = doc.add_paragraph()
-    sub.add_run(f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {contrato}").font.size = Pt(10)
+    _ide = empreendimento or "SRGE/SI-III/HDTON/CMUGH"
+    sub.add_run(f"{_ide}  |  Contrato: {contrato}").font.size = Pt(10)
     doc.add_paragraph()
 
 
-def _to_word(registros, contrato: str) -> bytes:
+def _to_word(registros, contrato: str, empreendimento: str = "") -> bytes:
     doc = Document()
     for sec in doc.sections:
         sec.top_margin = Cm(1.5)
         sec.bottom_margin = Cm(1.5)
         sec.left_margin = Cm(2)
         sec.right_margin = Cm(2)
-    _cabecalho_word(doc, contrato)
+    _cabecalho_word(doc, contrato, empreendimento)
     for r in registros:
         doc.add_heading(id_registro(r), level=2)
         tabela = doc.add_table(rows=4, cols=2)
@@ -408,15 +429,16 @@ def _to_word(registros, contrato: str) -> bytes:
 
 
 class _PDF(FPDF):
-    def __init__(self, contrato: str):
+    def __init__(self, contrato: str, empreendimento: str = ""):
         super().__init__()
         self._contrato = contrato
+        self._empreendimento = empreendimento or "SRGE/SI-III/HDTON/CMUGH"
 
     def header(self):
         self.set_font("Helvetica", "B", 12)
         self.cell(0, 8, "RO - Registro de Ocorrencias", align="L", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "", 9)
-        self.cell(0, 6, f"SRGE/SI-III/HDTON/CMUGH  |  Contrato: {self._contrato}", align="L", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 6, f"{self._empreendimento}  |  Contrato: {self._contrato}", align="L", new_x="LMARGIN", new_y="NEXT")
         self.ln(2)
 
     def footer(self):
@@ -425,8 +447,8 @@ class _PDF(FPDF):
         self.cell(0, 8, f"Pag. {self.page_no()}", align="C")
 
 
-def _to_pdf(registros, contrato: str) -> bytes:
-    pdf = _PDF(contrato)
+def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
+    pdf = _PDF(contrato, empreendimento)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     for r in registros:
@@ -549,7 +571,7 @@ with col_gear:
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-st.caption("SRGE/SI-III/HDTON/CMUGH")
+_caption_placeholder = st.empty()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
 
@@ -578,9 +600,10 @@ if st.session_state.show_admin:
                 with st.form("form_novo_contrato"):
                     nc_num   = st.text_input("Nº do Contrato")
                     nc_senha = st.text_input("Senha do Contrato", type="password")
+                    nc_ide   = st.text_input("Empreendimento", placeholder="ex: SRGE/SI-III/HDTON/CMUGH")
                     if st.form_submit_button("Criar Contrato"):
                         if nc_num.strip() and nc_senha.strip():
-                            if criar_contrato(nc_num.strip(), nc_senha.strip()):
+                            if criar_contrato(nc_num.strip(), nc_senha.strip(), nc_ide.strip()):
                                 st.success("Contrato criado.")
                                 st.rerun()
                             else:
@@ -598,15 +621,27 @@ if st.session_state.show_admin:
                     with st.form("form_novo_contrato"):
                         nc_num   = st.text_input("Nº do Contrato")
                         nc_senha = st.text_input("Senha do Contrato", type="password")
+                        nc_ide   = st.text_input("Empreendimento", placeholder="ex: SRGE/SI-III/HDTON/CMUGH")
                         if st.form_submit_button("Criar"):
                             if nc_num.strip() and nc_senha.strip():
-                                if criar_contrato(nc_num.strip(), nc_senha.strip()):
+                                if criar_contrato(nc_num.strip(), nc_senha.strip(), nc_ide.strip()):
                                     st.success("Contrato criado.")
                                     st.rerun()
                                 else:
                                     st.error("Contrato já existe.")
                             else:
                                 st.error("Preencha todos os campos.")
+
+                    st.markdown("**Empreendimento do contrato selecionado**")
+                    _ide_atual = obter_identificador(contrato_admin)
+                    with st.form("form_ide"):
+                        _ide_novo = st.text_input("Empreendimento", value=_ide_atual,
+                                                   placeholder="ex: SRGE/SI-III/HDTON/CMUGH")
+                        if st.form_submit_button("Salvar"):
+                            atualizar_identificador(contrato_admin, _ide_novo.strip())
+                            st.success("Empreendimento atualizado.")
+                            st.rerun()
+
                     st.markdown("**Contratos cadastrados**")
                     for _c in contratos_admin:
                         c1, c2 = st.columns([4, 1])
@@ -685,6 +720,8 @@ else:
     tenant = tenant.strip()
 
 lista_registros = carregar_lista(tenant)
+_empreendimento = obter_identificador(tenant)
+_caption_placeholder.caption(_empreendimento or "SRGE/SI-III/HDTON/CMUGH")
 
 # ─────────────────────────── 1) FISCALIZAÇÃO DE CAMPO ───────────
 
@@ -828,7 +865,7 @@ _n = f"{lista_registros[0].id:04d}" if len(lista_registros) == 1 else f"{len(lis
 if lista_registros:
     col_exp1, col_exp2 = st.columns(2)
     with col_exp1:
-        _share_btn("Compartilhar PDF", _to_pdf(lista_registros, tenant),
+        _share_btn("Compartilhar PDF", _to_pdf(lista_registros, tenant, _empreendimento),
                    f"RO-{_n}.pdf", "application/pdf", f"pdf_{_n}")
     with col_exp2:
         _share_btn("Compartilhar Excel", _to_excel(lista_registros),
