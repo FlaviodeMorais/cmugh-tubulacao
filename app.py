@@ -219,6 +219,7 @@ def salvar_registro(registro: RegistroCM) -> None:
     _post("registros_cm", {
         "tenant":         registro.tenant,
         "data_registro":  registro.data_registro,
+        "hora_registro":  registro.hora_registro,
         "obra":           registro.obra,
         "frente_servico": registro.frente_servico,
         "disciplina":     registro.disciplina,
@@ -1072,7 +1073,7 @@ fk = st.session_state.fk
 # Unidade
 _SELECIONE = "— selecione —"
 unidades_disponiveis = [u["nome"] for u in listar_unidades(tenant)]
-col_unidade, col_data = st.columns([4, 1])
+col_unidade, col_data, col_hora = st.columns([4, 2, 2])
 with col_unidade:
     if unidades_disponiveis:
         obra = st.selectbox("Unidade", [_SELECIONE] + unidades_disponiveis, key=f"obra_{fk}")
@@ -1080,6 +1081,9 @@ with col_unidade:
         obra = st.text_input("Unidade", key=f"obra_{fk}")
 with col_data:
     data_registro = st.date_input("Data", value=None, format="DD/MM/YYYY", key=f"data_{fk}")
+with col_hora:
+    _agora_br = datetime.now(ZoneInfo("America/Sao_Paulo")).time().replace(second=0, microsecond=0)
+    hora_registro = st.time_input("Hora", value=_agora_br, step=60, key=f"hora_{fk}")
 
 col_frente, col_disciplina = st.columns([3, 2])
 with col_frente:
@@ -1148,6 +1152,7 @@ if st.button("Salvar", type="primary"):
             id=0,
             tenant=tenant,
             data_registro=data_registro.isoformat(),
+            hora_registro=hora_registro.strftime("%H:%M") if hora_registro else "",
             obra=str(obra).strip(),
             frente_servico=frente_servico.strip(),
             disciplina=disciplina,
