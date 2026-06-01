@@ -737,6 +737,8 @@ button[kind="primary"]:hover {
 button[data-testid="baseButton-primary"] p,
 button[kind="primary"] p {
     color: #FFFFFF !important;
+    font-weight: 800 !important;
+    text-shadow: 0 0 1px rgba(255,255,255,0.8) !important;
 }
 
 /* botão de menu — só ícone, sem caixa */
@@ -808,7 +810,7 @@ if not st.session_state.user_logado:
         if _ld:
             st.markdown(
                 f'<div style="text-align:center;margin-bottom:8px">'
-                f'<img src="data:image/{_lm};base64,{_ld}" style="height:56px;object-fit:contain">'
+                f'<img src="data:image/{_lm};base64,{_ld}" style="height:32px;object-fit:contain">'
                 f'</div>',
                 unsafe_allow_html=True,
             )
