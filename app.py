@@ -866,6 +866,9 @@ if st.session_state.admin_logado:
 
 # ─────────────────────────── CABEÇALHO ───────────────────────────
 
+_b64 = _banner_b64()
+_logo_mime, _logo_data = _logo_b64()
+
 _banner_img = (
     f'<img src="data:image/jpeg;base64,{_b64}" '
     f'style="width:100%;height:160px;object-fit:cover;object-position:center 40%;display:block">'
