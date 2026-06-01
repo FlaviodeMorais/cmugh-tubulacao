@@ -735,10 +735,16 @@ button[kind="primary"]:hover {
     color: #FFFFFF !important;
 }
 button[data-testid="baseButton-primary"] p,
-button[kind="primary"] p {
+button[data-testid="baseButton-primary"] span,
+button[data-testid="baseButton-primary"] *,
+button[kind="primary"] p,
+button[kind="primary"] *,
+[data-testid="stFormSubmitButton"] button p,
+[data-testid="stFormSubmitButton"] button span,
+[data-testid="stFormSubmitButton"] button * {
     color: #FFFFFF !important;
-    font-weight: 800 !important;
-    text-shadow: 0 0 1px rgba(255,255,255,0.8) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
 }
 
 /* botão de menu — só ícone, sem caixa */
