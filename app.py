@@ -986,7 +986,7 @@ if st.session_state.show_admin:
                         f_email = st.text_input("E-mail do Fiscal")
                         f_senha = st.text_input("Senha de acesso", type="password",
                                                 help="Senha que o fiscal usará para entrar no app")
-                        if st.form_submit_button("Adicionar"):
+                        if st.form_submit_button("Adicionar", type="primary"):
                             if f_nome.strip():
                                 adicionar_fiscal(contrato_admin, f_nome.strip(),
                                                  f_chave.strip(), f_disc, f_email.strip(), f_senha)
@@ -1007,7 +1007,7 @@ if st.session_state.show_admin:
                     st.markdown("**Cadastrar Unidade**")
                     with st.form("form_unidade"):
                         u_nome = st.text_input("Nome da Unidade")
-                        if st.form_submit_button("Adicionar"):
+                        if st.form_submit_button("Adicionar", type="primary"):
                             if u_nome.strip():
                                 adicionar_unidade(contrato_admin, u_nome.strip())
                                 st.success("Unidade adicionada.")
