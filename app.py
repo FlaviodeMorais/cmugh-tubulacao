@@ -343,6 +343,11 @@ def exibir_cards(registros: List[RegistroCM], contrato: str = "", empreendimento
         rid = id_registro(r)
         with st.expander(rid, expanded=False):
             st.checkbox("Selecionar para PDF", key=f"sel_{r.id}")
+            _dh_card = fmt_data(r.data_registro) + (f" {r.hora_registro}" if r.hora_registro else "")
+            st.markdown(
+                f"**Fiscal:** {r.fiscal or '—'} &nbsp;|&nbsp; "
+                f"**Data:** {_dh_card}"
+            )
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"**Frente:** {r.frente_servico}")
@@ -495,8 +500,18 @@ def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(0, 7, _pdf_txt(id_registro(r)), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
+        # Linha 1: Fiscal | Data | Hora
+        _dh_pdf = fmt_data(r.data_registro) + (f" {r.hora_registro}" if r.hora_registro else "")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.write(6, "Fiscal: ")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.write(6, _pdf_txt(r.fiscal or "-"))
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.write(6, "   |   Data: ")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.write(6, _pdf_txt(_dh_pdf))
+        pdf.ln(6)
         for label, valor in [
-            ("Fiscal", r.fiscal or "-"),
             ("Frente", r.frente_servico), ("Disciplina", r.disciplina),
             ("Atividade", r.atividade), ("Equipe", r.equipe or "-"),
             ("Responsavel", r.responsavel or "-"),
