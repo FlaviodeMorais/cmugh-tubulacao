@@ -927,7 +927,7 @@ if st.session_state.show_admin:
                     nc_num   = st.text_input("Nº do Contrato")
                     nc_senha = st.text_input("Senha do Contrato", type="password")
                     nc_ide   = st.text_input("Empreendimento", placeholder="ex: SRGE/SI-III/HDTON/CMUGH")
-                    if st.form_submit_button("Criar Contrato"):
+                    if st.form_submit_button("Criar Contrato", type="primary"):
                         if nc_num.strip() and nc_senha.strip():
                             if criar_contrato(nc_num.strip(), nc_senha.strip(), nc_ide.strip()):
                                 st.success("Contrato criado.")
@@ -948,7 +948,7 @@ if st.session_state.show_admin:
                         nc_num   = st.text_input("Nº do Contrato")
                         nc_senha = st.text_input("Senha do Contrato", type="password")
                         nc_ide   = st.text_input("Empreendimento", placeholder="ex: SRGE/SI-III/HDTON/CMUGH")
-                        if st.form_submit_button("Criar"):
+                        if st.form_submit_button("Criar", type="primary"):
                             if nc_num.strip() and nc_senha.strip():
                                 if criar_contrato(nc_num.strip(), nc_senha.strip(), nc_ide.strip()):
                                     st.success("Contrato criado.")
@@ -963,7 +963,7 @@ if st.session_state.show_admin:
                     with st.form("form_ide"):
                         _ide_novo = st.text_input("Empreendimento", value=_ide_atual,
                                                    placeholder="ex: SRGE/SI-III/HDTON/CMUGH")
-                        if st.form_submit_button("Salvar"):
+                        if st.form_submit_button("Salvar", type="primary"):
                             atualizar_identificador(contrato_admin, _ide_novo.strip())
                             st.success("Empreendimento atualizado.")
                             st.rerun()
