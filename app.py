@@ -371,6 +371,7 @@ def exibir_cards(registros: List[RegistroCM], contrato: str = "", empreendimento
                         r.tenant, r.data_registro, r.obra, r.frente_servico,
                         r.disciplina, r.atividade, r.equipe, r.responsavel,
                         r.fiscal, r.status, r.impacto_rdo, r.observacoes, r.chave,
+                        r.hora_registro, r.latitude, r.longitude,
                     ),
                     f"{rid}.pdf",
                     "application/pdf",
