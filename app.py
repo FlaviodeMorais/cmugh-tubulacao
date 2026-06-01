@@ -181,9 +181,17 @@ def listar_fiscais(contrato: str) -> list:
     return _get("fiscais", {"select": "*", "contrato": _eq(contrato), "order": "nome.asc"})
 
 
-def adicionar_fiscal(contrato, nome, chave, disciplina, email="") -> None:
-    _post("fiscais", {"contrato": contrato, "nome": nome, "chave": chave, "disciplina": disciplina, "email": email})
+def adicionar_fiscal(contrato, nome, chave, disciplina, email="", senha="") -> None:
+    _senha_hash = hashlib.sha256(senha.encode()).hexdigest() if senha else ""
+    _post("fiscais", {"contrato": contrato, "nome": nome, "chave": chave,
+                      "disciplina": disciplina, "email": email, "senha": _senha_hash})
     listar_fiscais.clear()
+
+
+def verificar_login_fiscal(email: str, senha: str) -> dict | None:
+    _hash = hashlib.sha256(senha.encode()).hexdigest()
+    rows = _get("fiscais", {"select": "*", "email": _eq(email), "senha": _eq(_hash)})
+    return rows[0] if rows else None
 
 
 def excluir_fiscal(fid: int) -> None:
@@ -760,6 +768,53 @@ button[kind="primary"] p {
 </style>
 """, unsafe_allow_html=True)
 
+# ─────────────────────────── LOGIN ──────────────────────────────
+
+if "user_logado" not in st.session_state:
+    st.session_state.user_logado = False
+    st.session_state.user_tipo = None       # "admin" | "fiscal"
+    st.session_state.user_fiscal = {}       # dict com dados do fiscal logado
+
+if not st.session_state.user_logado:
+    _lm, _ld = _logo_b64()
+    _col_l, _col_c, _col_r = st.columns([1, 2, 1])
+    with _col_c:
+        if _ld:
+            st.markdown(
+                f'<div style="text-align:center;margin-bottom:8px">'
+                f'<img src="data:image/{_lm};base64,{_ld}" style="height:56px;object-fit:contain">'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        st.markdown(
+            '<p style="text-align:center;font-size:1.1rem;font-weight:700;'
+            'letter-spacing:.03em;margin-bottom:24px">RO - REGISTRO DE OCORRÊNCIAS</p>',
+            unsafe_allow_html=True,
+        )
+        with st.form("form_login"):
+            _login_email = st.text_input("Login (e-mail ou Admin)", placeholder="seu@email.com")
+            _login_senha = st.text_input("Senha", type="password")
+            if st.form_submit_button("ENTRAR", type="primary", use_container_width=True):
+                if _verificar_admin(_login_email.strip(), _login_senha):
+                    st.session_state.user_logado = True
+                    st.session_state.user_tipo = "admin"
+                    st.session_state.admin_logado = True
+                    st.rerun()
+                else:
+                    _fiscal_info = None
+                    try:
+                        _fiscal_info = verificar_login_fiscal(_login_email.strip(), _login_senha)
+                    except Exception:
+                        pass
+                    if _fiscal_info:
+                        st.session_state.user_logado = True
+                        st.session_state.user_tipo = "fiscal"
+                        st.session_state.user_fiscal = _fiscal_info
+                        st.rerun()
+                    else:
+                        st.error("Login ou senha inválidos.")
+    st.stop()
+
 # ─────────────────────────── ESTADO ADMIN ────────────────────────
 
 if "admin_logado" not in st.session_state:
@@ -829,13 +884,22 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Título (esquerda) + botão ☰ (direita) na mesma linha
-_col_titulo, _col_gear = st.columns([11, 1], vertical_alignment="center")
+# Título (esquerda) + botões (direita) na mesma linha
+_col_titulo, _col_gear, _col_logout = st.columns([10, 1, 1], vertical_alignment="center")
 with _col_titulo:
     _titulo_placeholder = st.empty()
 with _col_gear:
-    if st.button("☰", key="btn_gear"):
-        st.session_state.show_admin = not st.session_state.show_admin
+    if st.session_state.user_tipo == "admin":
+        if st.button("☰", key="btn_gear"):
+            st.session_state.show_admin = not st.session_state.show_admin
+            st.rerun()
+with _col_logout:
+    if st.button("⏻", key="btn_logout", help="Sair"):
+        st.session_state.user_logado = False
+        st.session_state.user_tipo = None
+        st.session_state.user_fiscal = {}
+        st.session_state.admin_logado = False
+        st.session_state.show_admin = False
         st.rerun()
 
 # ─────────────────────────── PAINEL ADMIN ────────────────────────
@@ -916,10 +980,12 @@ if st.session_state.show_admin:
                         f_chave = st.text_input("Chave")
                         f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
                         f_email = st.text_input("E-mail do Fiscal")
+                        f_senha = st.text_input("Senha de acesso", type="password",
+                                                help="Senha que o fiscal usará para entrar no app")
                         if st.form_submit_button("Adicionar"):
                             if f_nome.strip():
                                 adicionar_fiscal(contrato_admin, f_nome.strip(),
-                                                 f_chave.strip(), f_disc, f_email.strip())
+                                                 f_chave.strip(), f_disc, f_email.strip(), f_senha)
                                 st.success("Fiscal adicionado.")
                                 st.rerun()
                             else:
