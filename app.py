@@ -768,6 +768,32 @@ button[kind="primary"] p {
 </style>
 """, unsafe_allow_html=True)
 
+@st.cache_resource
+def _banner_b64() -> str:
+    p = Path(__file__).parent / "header.jpg"
+    if not p.exists():
+        return ""
+    img = Image.open(p).convert("RGB")
+    w, h = img.size
+    target_h = max(1, w // 6)
+    if h > target_h:
+        top = (h - target_h) // 2
+        img = img.crop((0, top, w, top + target_h))
+    img = img.resize((1200, 200), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=82)
+    return base64.b64encode(buf.getvalue()).decode()
+
+@st.cache_resource
+def _logo_b64():
+    base = Path(__file__).parent
+    for nome in ("PETROBRAS.jpg", "petrobras.jpg", "petrobras.png", "logo.png", "logo.jpg"):
+        p = base / nome
+        if p.exists():
+            mime = "png" if nome.endswith(".png") else "jpeg"
+            return mime, base64.b64encode(p.read_bytes()).decode()
+    return "", ""
+
 # ─────────────────────────── LOGIN ──────────────────────────────
 
 if "user_logado" not in st.session_state:
@@ -833,37 +859,6 @@ if st.session_state.admin_logado:
 """, unsafe_allow_html=True)
 
 # ─────────────────────────── CABEÇALHO ───────────────────────────
-
-@st.cache_resource
-def _banner_b64() -> str:
-    from pathlib import Path
-    p = Path(__file__).parent / "header.jpg"
-    if not p.exists():
-        return ""
-    img = Image.open(p).convert("RGB")
-    w, h = img.size
-    target_h = max(1, w // 6)
-    if h > target_h:
-        top = (h - target_h) // 2
-        img = img.crop((0, top, w, top + target_h))
-    img = img.resize((1200, 200), Image.LANCZOS)
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=82)
-    return base64.b64encode(buf.getvalue()).decode()
-
-@st.cache_resource
-def _logo_b64() -> str:
-    from pathlib import Path
-    base = Path(__file__).parent
-    for nome in ("PETROBRAS.jpg", "petrobras.jpg", "petrobras.png", "logo.png", "logo.jpg"):
-        p = base / nome
-        if p.exists():
-            mime = "png" if nome.endswith(".png") else "jpeg"
-            return mime, base64.b64encode(p.read_bytes()).decode()
-    return "", ""
-
-_b64 = _banner_b64()
-_logo_mime, _logo_data = _logo_b64()
 
 _banner_img = (
     f'<img src="data:image/jpeg;base64,{_b64}" '
