@@ -210,10 +210,23 @@ def excluir_unidade(uid: int) -> None:
 
 # ── registros ──
 
+_COLS_LISTA = (
+    "id,tenant,data_registro,hora_registro,obra,frente_servico,disciplina,"
+    "atividade,equipe,responsavel,fiscal,status,impacto_rdo,observacoes,"
+    "chave,latitude,longitude"
+)
+
 @st.cache_data(ttl=60, show_spinner=False)
 def carregar_lista(tenant: str) -> List[RegistroCM]:
-    rows = _get("registros_cm", {"select": "*", "tenant": _eq(tenant), "order": "id.desc"})
+    """Busca registros SEM evidencias (fotos) para evitar payload pesado."""
+    rows = _get("registros_cm", {"select": _COLS_LISTA, "tenant": _eq(tenant), "order": "id.desc"})
     return [RegistroCM(**r) for r in rows]
+
+@st.cache_data(ttl=300, show_spinner=False)
+def buscar_evidencias(registro_id: int) -> str:
+    """Busca evidencias de um registro específico (cache 5min por registro)."""
+    rows = _get("registros_cm", {"select": "id,evidencias", "id": _eq(registro_id)})
+    return rows[0].get("evidencias", "") if rows else ""
 
 
 def salvar_registro(registro: RegistroCM) -> None:
@@ -235,6 +248,7 @@ def salvar_registro(registro: RegistroCM) -> None:
         "chave":          registro.chave,
     })
     carregar_lista.clear()
+    buscar_evidencias.clear()
 
 
 def excluir_registro(rid: int) -> None:
@@ -362,12 +376,12 @@ def exibir_cards(registros: List[RegistroCM], contrato: str = "", empreendimento
                 st.markdown(f"**Classificação:** {r.impacto_rdo}")
             if r.observacoes:
                 st.markdown(f"**Obs:** {r.observacoes}")
-            exibir_grid_evidencias(r.evidencias)
+            exibir_grid_evidencias(buscar_evidencias(r.id))
             if contrato:
                 _share_btn(
                     "Compartilhar PDF",
                     _pdf_registro_cached(
-                        r.id, r.evidencias, contrato, empreendimento,
+                        r.id, buscar_evidencias(r.id), contrato, empreendimento,
                         r.tenant, r.data_registro, r.obra, r.frente_servico,
                         r.disciplina, r.atividade, r.equipe, r.responsavel,
                         r.fiscal, r.status, r.impacto_rdo, r.observacoes, r.chave,
