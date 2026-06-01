@@ -566,12 +566,14 @@ def _pdf_registro_cached(r_id: int, evidencias: str, contrato: str, empreendimen
                          tenant: str, data_registro: str, obra: str, frente_servico: str,
                          disciplina: str, atividade: str, equipe: str, responsavel: str,
                          fiscal: str, status: str, impacto_rdo: str, observacoes: str,
-                         chave: str) -> bytes:
+                         chave: str, hora_registro: str = "", latitude: str = "",
+                         longitude: str = "") -> bytes:
     r = RegistroCM(id=r_id, tenant=tenant, data_registro=data_registro, obra=obra,
                    frente_servico=frente_servico, disciplina=disciplina, atividade=atividade,
                    equipe=equipe, responsavel=responsavel, fiscal=fiscal, status=status,
                    impacto_rdo=impacto_rdo, observacoes=observacoes,
-                   evidencias=evidencias, chave=chave)
+                   evidencias=evidencias, chave=chave,
+                   hora_registro=hora_registro, latitude=latitude, longitude=longitude)
     return _to_pdf([r], contrato, empreendimento)
 
 # ─────────────────────────── COMPARTILHAMENTO ─────────────────────
