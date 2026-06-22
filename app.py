@@ -15,14 +15,12 @@ import requests
 
 import streamlit as st
 
-# Credenciais do admin master (senha armazenada como SHA-256)
-_ADMIN_USER = "Admin"
-_ADMIN_HASH = hashlib.sha256("979101Fm$".encode()).hexdigest()
-
-
 def _verificar_admin(usuario: str, senha: str) -> bool:
-    return (usuario == _ADMIN_USER and
-            hashlib.sha256(senha.encode()).hexdigest() == _ADMIN_HASH)
+    _cfg = st.secrets.get("admin", {})
+    _user = _cfg.get("usuario", "")
+    _hash = hashlib.sha256(_cfg.get("senha", "").encode()).hexdigest()
+    return bool(_user and usuario == _user and
+                hashlib.sha256(senha.encode()).hexdigest() == _hash)
 
 DISCIPLINAS = [
     "Tubulação", "Dinâmicos", "Estáticos", "Civil", "Estruturas Metálicas",
