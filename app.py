@@ -1262,6 +1262,7 @@ fotos = st.file_uploader(
     accept_multiple_files=True,
     key=f"fotos_{fk}",
 )
+st.caption("💡 Salve as fotos na galeria do celular antes de enviar. Se o app fechar, é só reenviar da galeria — sem precisar retirar.")
 fotos_validas = []
 for f in fotos:
     if len(f.getvalue()) > 20 * 1024 * 1024:
