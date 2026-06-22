@@ -645,6 +645,28 @@ async function sf_{fid}(){{
     st.components.v1.html(html, height=45)
 
 
+_DRAFT_SAVE_HTML = """<script>
+(function(){
+  var K='rdoe_draft',p=window.parent;
+  if(p.location.search.indexOf('rdoe_restore')>-1){localStorage.removeItem(K);return;}
+  var s=localStorage.getItem(K);
+  if(s){try{p.location.href=p.location.pathname+'?rdoe_restore='+btoa(unescape(encodeURIComponent(s)));}catch(e){}return;}
+  setInterval(function(){
+    try{
+      var d={};
+      p.document.querySelectorAll('[data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea').forEach(function(el){
+        var c=el.closest('[data-testid="stTextInput"],[data-testid="stTextArea"]');
+        var l=c&&c.querySelector('label');
+        if(l&&el.value)d[l.textContent.trim()]=el.value;
+      });
+      if(Object.keys(d).length)localStorage.setItem(K,JSON.stringify(d));
+    }catch(e){}
+  },3000);
+})();
+</script>"""
+
+_DRAFT_CLEAR_HTML = "<script>localStorage.removeItem('rdoe_draft');</script>"
+
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
@@ -1149,6 +1171,25 @@ _titulo_placeholder.markdown(
 
 # ─────────────────────────── 1) FISCALIZAÇÃO DE CAMPO ───────────
 
+# ── Restaurar rascunho ──
+_dp = st.query_params.get('rdoe_restore', '')
+if _dp and 'draft_ok' not in st.session_state:
+    try:
+        _d = json.loads(base64.b64decode(_dp + '==').decode('utf-8', errors='replace'))
+        for _l, _k in [('Frente de servico', 'frente_0'), ('Atividade Executada', 'ativ_0'),
+                       ('Observacoes adicionais', 'obs_0'), ('Equipe da Contratada', 'equipe_0'),
+                       ('Responsavel Contratada', 'resp_0')]:
+            if _d.get(_l): st.session_state[_k] = _d[_l]
+        st.session_state['draft_ok'] = True
+        st.query_params.clear()
+        st.rerun()
+    except Exception:
+        st.query_params.clear()
+
+if st.session_state.get('draft_ok'):
+    del st.session_state['draft_ok']
+    st.info('Rascunho restaurado automaticamente.')
+
 st.subheader("1) Fiscalização de Campo")
 
 fiscais_disponiveis = listar_fiscais(tenant)
@@ -1189,6 +1230,7 @@ fiscal_chave = fiscal_selecionado.get("chave", "")
 # ─────────────────────────── 2) REGISTROS RDOe ───────────────────
 
 st.subheader("2) Registros de Ocorrências")
+st.components.v1.html(_DRAFT_SAVE_HTML, height=0)
 
 if "fk" not in st.session_state:
     st.session_state.fk = 0
@@ -1291,6 +1333,7 @@ if st.button("Salvar", type="primary"):
             chave=fiscal_chave.strip(),
         ))
         st.success("Registro inserido com sucesso.")
+        st.components.v1.html(_DRAFT_CLEAR_HTML, height=0)
         st.session_state.fk += 1
         st.rerun()
 
