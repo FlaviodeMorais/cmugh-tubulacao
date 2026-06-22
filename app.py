@@ -1141,8 +1141,15 @@ st.subheader("1) Fiscalização de Campo")
 
 fiscais_disponiveis = listar_fiscais(tenant)
 fiscal_selecionado  = {}
+_fiscal_logado = st.session_state.user_tipo == "fiscal"
 
-if fiscais_disponiveis:
+if _fiscal_logado:
+    fiscal_selecionado = st.session_state.user_fiscal
+    col_nf, col_chave, col_disc_f = st.columns([3, 2, 2])
+    col_nf.text_input("Fiscal de Campo", value=fiscal_selecionado.get("nome", ""), disabled=True, key="nome_ro")
+    col_chave.text_input("Chave", value=fiscal_selecionado.get("chave", ""), disabled=True, key="chave_ro")
+    col_disc_f.text_input("Disciplina", value=fiscal_selecionado.get("disciplina", ""), disabled=True, key="disc_ro")
+elif fiscais_disponiveis:
     nomes = [""] + [f["nome"] for f in fiscais_disponiveis]
     nome_escolhido = st.selectbox("Nome do Fiscal de Campo", nomes, key="sel_fiscal",
                                   format_func=lambda x: "— selecione —" if x == "" else x)
@@ -1280,7 +1287,34 @@ if st.button("Salvar", type="primary"):
 st.subheader("3) Registros")
 
 if lista_registros:
-    exibir_cards(lista_registros, tenant, _empreendimento)
+    with st.expander("Filtros", expanded=False):
+        _cf1, _cf2, _cf3 = st.columns(3)
+        _f_status = _cf1.selectbox("Status", ["Todos"] + sorted({r.status for r in lista_registros if r.status}), key="f_status")
+        _f_disc   = _cf2.selectbox("Disciplina", ["Todas"] + sorted({r.disciplina for r in lista_registros if r.disciplina}), key="f_disc")
+        _f_fiscal = _cf3.selectbox("Fiscal", ["Todos"] + sorted({r.fiscal for r in lista_registros if r.fiscal}), key="f_fiscal")
+        _cd1, _cd2 = st.columns(2)
+        _f_ini = _cd1.date_input("De", value=None, format="DD/MM/YYYY", key="f_data_ini")
+        _f_fim = _cd2.date_input("Ate", value=None, format="DD/MM/YYYY", key="f_data_fim")
+
+    _filtrados = lista_registros
+    if _f_status != "Todos":
+        _filtrados = [r for r in _filtrados if r.status == _f_status]
+    if _f_disc != "Todas":
+        _filtrados = [r for r in _filtrados if r.disciplina == _f_disc]
+    if _f_fiscal != "Todos":
+        _filtrados = [r for r in _filtrados if r.fiscal == _f_fiscal]
+    if _f_ini:
+        _filtrados = [r for r in _filtrados if r.data_registro >= _f_ini.isoformat()]
+    if _f_fim:
+        _filtrados = [r for r in _filtrados if r.data_registro <= _f_fim.isoformat()]
+
+    if len(_filtrados) < len(lista_registros):
+        st.caption(f"{len(_filtrados)} de {len(lista_registros)} registro(s)")
+
+    if _filtrados:
+        exibir_cards(_filtrados, tenant, _empreendimento)
+    else:
+        st.info("Nenhum registro encontrado com os filtros aplicados.")
 else:
     st.info("Nenhum registro encontrado para este contrato.")
 
@@ -1292,8 +1326,9 @@ if lista_registros:
         _share_btn(_lbl, _to_pdf(selecionados, tenant, _empreendimento),
                    f"RO-{_n_sel}.pdf", "application/pdf", f"pdf_sel_{_n_sel}")
 
-    _n = f"{len(lista_registros):04d}-registros"
-    _share_btn("Compartilhar Excel (todos os registros)", _to_excel(lista_registros),
+    _filtrados_exp = _filtrados if lista_registros else lista_registros
+    _n = f"{len(_filtrados_exp):04d}-registros"
+    _share_btn("Compartilhar Excel (registros visiveis)", _to_excel(_filtrados_exp),
                f"RO-{_n}.xlsx",
                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                f"xlsx_{_n}")
