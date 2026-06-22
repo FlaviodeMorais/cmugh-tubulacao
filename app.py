@@ -281,6 +281,18 @@ def img_thumb(data: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _comprimir_foto(data: bytes, max_lado: int = 1200, qualidade: int = 82) -> bytes:
+    from PIL import Image
+    img = Image.open(io.BytesIO(data)).convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_lado:
+        ratio = max_lado / max(w, h)
+        img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=qualidade)
+    return buf.getvalue()
+
+
 def fmt_data(iso: str) -> str:
     try:
         a, m, d = iso.split("-")
@@ -1273,7 +1285,7 @@ if st.button("Salvar", type="primary"):
             impacto_rdo=impacto_rdo,
             observacoes=observacoes.strip(),
             evidencias=json.dumps([
-                {"foto": base64.b64encode(f.getvalue()).decode(), "legenda": leg}
+                {"foto": base64.b64encode(_comprimir_foto(f.getvalue())).decode(), "legenda": leg}
                 for f, leg in zip(fotos[:4], _legendas)
             ]),
             chave=fiscal_chave.strip(),
