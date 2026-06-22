@@ -50,6 +50,7 @@ class RegistroCM:
     hora_registro: str = ""
     latitude: str = ""
     longitude: str = ""
+    arquivado: bool = False
 
 # ─────────────────────────── BANCO DE DADOS (Supabase REST) ──────────────────
 
@@ -214,14 +215,22 @@ def excluir_unidade(uid: int) -> None:
 _COLS_LISTA = (
     "id,tenant,data_registro,hora_registro,obra,frente_servico,disciplina,"
     "atividade,equipe,responsavel,fiscal,status,impacto_rdo,observacoes,"
-    "chave,latitude,longitude"
+    "chave,latitude,longitude,arquivado"
 )
 
 @st.cache_data(ttl=60, show_spinner=False)
-def carregar_lista(tenant: str) -> List[RegistroCM]:
-    """Busca registros SEM evidencias (fotos) para evitar payload pesado."""
-    rows = _get("registros_cm", {"select": _COLS_LISTA, "tenant": _eq(tenant), "order": "id.desc"})
+def carregar_lista(tenant: str, fiscal: str = "") -> List[RegistroCM]:
+    params = {"select": _COLS_LISTA, "tenant": _eq(tenant), "order": "id.desc"}
+    if fiscal:
+        params["fiscal"] = _eq(fiscal)
+        params["arquivado"] = "eq.false"
+    rows = _get("registros_cm", params)
     return [RegistroCM(**r) for r in rows]
+
+
+def arquivar_registro(rid: int) -> None:
+    _patch("registros_cm", {"id": _eq(rid)}, {"arquivado": True})
+    carregar_lista.clear()
 
 @st.cache_data(ttl=300, show_spinner=False)
 def buscar_evidencias(registro_id: int) -> str:
@@ -391,6 +400,12 @@ def exibir_cards(registros: List[RegistroCM], contrato: str = "", empreendimento
             if r.observacoes:
                 st.markdown(f"**Obs:** {r.observacoes}")
             exibir_grid_evidencias(buscar_evidencias(r.id))
+            if r.arquivado:
+                st.caption("🗂 Arquivado pelo fiscal")
+            if st.session_state.get("user_tipo") == "fiscal" and not r.arquivado:
+                if st.button("Arquivar", key=f"arq_{r.id}"):
+                    arquivar_registro(r.id)
+                    st.rerun()
             if contrato:
                 _share_btn(
                     "Compartilhar PDF",
@@ -410,7 +425,7 @@ def exibir_cards(registros: List[RegistroCM], contrato: str = "", empreendimento
 
 def _to_excel(registros) -> bytes:
     df = pd.DataFrame(para_exibicao(registros))
-    df = df.drop(columns=["id", "tenant", "evidencias"], errors="ignore")
+    df = df.drop(columns=["id", "tenant", "evidencias", "arquivado"], errors="ignore")
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="RDOe")
@@ -1153,7 +1168,8 @@ else:
     tenant = tenant.strip()
 
 try:
-    lista_registros = carregar_lista(tenant)
+    _f_nome = st.session_state.user_fiscal.get("nome", "") if st.session_state.user_tipo == "fiscal" else ""
+    lista_registros = carregar_lista(tenant, _f_nome)
     _empreendimento = obter_identificador(tenant)
 except _SupabaseError as _e:
     st.error(str(_e))
