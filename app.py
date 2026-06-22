@@ -11,11 +11,6 @@ from zoneinfo import ZoneInfo
 from typing import List
 
 import pandas as pd
-from docx import Document
-from docx.shared import Cm, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from fpdf import FPDF
-from PIL import Image
 import requests
 
 import streamlit as st
@@ -277,6 +272,7 @@ THUMB_SIZE = 200
 
 
 def img_thumb(data: bytes) -> bytes:
+    from PIL import Image
     img = Image.open(io.BytesIO(data)).convert("RGB")
     w, h = img.size
     m = min(w, h)
@@ -411,7 +407,7 @@ def _to_excel(registros) -> bytes:
     return buf.getvalue()
 
 
-def _cabecalho_word(doc: Document, contrato: str, empreendimento: str = "") -> None:
+def _cabecalho_word(doc, contrato: str, empreendimento: str = "") -> None:
     t = doc.add_paragraph()
     run = t.add_run("RO - Registro de Ocorrências")
     run.bold = True
@@ -423,6 +419,8 @@ def _cabecalho_word(doc: Document, contrato: str, empreendimento: str = "") -> N
 
 
 def _to_word(registros, contrato: str, empreendimento: str = "") -> bytes:
+    from docx import Document
+    from docx.shared import Cm, Pt, RGBColor
     doc = Document()
     for sec in doc.sections:
         sec.top_margin = Cm(1.5)
@@ -466,58 +464,59 @@ def _to_word(registros, contrato: str, empreendimento: str = "") -> bytes:
     return buf.getvalue()
 
 
-class _PDF(FPDF):
-    def __init__(self, contrato: str, empreendimento: str = ""):
-        super().__init__()
-        self._contrato = contrato
-        self._empreendimento = empreendimento or "SRGE/SI-III/HDTON/CMUGH"
-        _mime, _b64 = _logo_b64()
-        self._logo_bytes = base64.b64decode(_b64) if _b64 else None
-
-    def header(self):
-        logo_h_mm = 9.3   # tamanho físico ≈ 28px visual
-        logo_dpi  = 150
-        if self._logo_bytes:
-            try:
-                _pil = Image.open(io.BytesIO(self._logo_bytes)).convert("RGB")
-                _lw, _lh = _pil.size
-                # redimensiona para 150dpi no tamanho físico alvo
-                _tgt_h = round((logo_h_mm / 25.4) * logo_dpi)
-                _tgt_w = round(_tgt_h * _lw / _lh)
-                _pil = _pil.resize((_tgt_w, _tgt_h), Image.LANCZOS)
-                _buf = io.BytesIO()
-                _pil.save(_buf, format="JPEG", quality=95, dpi=(logo_dpi, logo_dpi))
-                _buf.seek(0)
-                _lw_mm = logo_h_mm * (_lw / _lh)
-                self.image(_buf,
-                           x=self.w - self.r_margin - _lw_mm,
-                           y=self.t_margin,
-                           h=logo_h_mm)
-            except Exception:
-                pass
-        self.set_font("Helvetica", "B", 12)
-        self.cell(0, logo_h_mm, "RO - Registro de Ocorrencias", align="L", new_x="LMARGIN", new_y="NEXT")
-        self.set_font("Helvetica", "", 9)
-        self.cell(0, 6, f"{self._empreendimento}  |  Contrato: {self._contrato}", align="L", new_x="LMARGIN", new_y="NEXT")
-        self.ln(2)
-
-    def footer(self):
-        self.set_y(-12)
-        self.set_font("Helvetica", "I", 8)
-        self.cell(0, 8, f"Pag. {self.page_no()}", align="C")
-
-
 def _pdf_txt(text: str) -> str:
     """Sanitiza texto para Latin-1 (Helvetica no fpdf2)."""
     return (str(text or "")
             .replace("—", "-").replace("–", "-")
-            .replace("’", "'").replace("‘", "'")
-            .replace("“", '"').replace("”", '"')
+            .replace("'", "'").replace("'", "'")
+            .replace(""", '"').replace(""", '"')
             .replace("…", "...").replace("°", "o")
             .encode("latin-1", errors="replace").decode("latin-1"))
 
 
 def _to_pdf(registros, contrato: str, empreendimento: str = "") -> bytes:
+    from fpdf import FPDF
+    from PIL import Image as _Image
+
+    class _PDF(FPDF):
+        def __init__(self, contrato: str, empreendimento: str = ""):
+            super().__init__()
+            self._contrato = contrato
+            self._empreendimento = empreendimento or "SRGE/SI-III/HDTON/CMUGH"
+            _mime, _b64 = _logo_b64()
+            self._logo_bytes = base64.b64decode(_b64) if _b64 else None
+
+        def header(self):
+            logo_h_mm = 9.3
+            logo_dpi  = 150
+            if self._logo_bytes:
+                try:
+                    _pil = _Image.open(io.BytesIO(self._logo_bytes)).convert("RGB")
+                    _lw, _lh = _pil.size
+                    _tgt_h = round((logo_h_mm / 25.4) * logo_dpi)
+                    _tgt_w = round(_tgt_h * _lw / _lh)
+                    _pil = _pil.resize((_tgt_w, _tgt_h), _Image.LANCZOS)
+                    _buf = io.BytesIO()
+                    _pil.save(_buf, format="JPEG", quality=95, dpi=(logo_dpi, logo_dpi))
+                    _buf.seek(0)
+                    _lw_mm = logo_h_mm * (_lw / _lh)
+                    self.image(_buf,
+                               x=self.w - self.r_margin - _lw_mm,
+                               y=self.t_margin,
+                               h=logo_h_mm)
+                except Exception:
+                    pass
+            self.set_font("Helvetica", "B", 12)
+            self.cell(0, logo_h_mm, "RO - Registro de Ocorrencias", align="L", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("Helvetica", "", 9)
+            self.cell(0, 6, f"{self._empreendimento}  |  Contrato: {self._contrato}", align="L", new_x="LMARGIN", new_y="NEXT")
+            self.ln(2)
+
+        def footer(self):
+            self.set_y(-12)
+            self.set_font("Helvetica", "I", 8)
+            self.cell(0, 8, f"Pag. {self.page_no()}", align="C")
+
     pdf = _PDF(contrato, empreendimento)
     pdf.set_auto_page_break(auto=True, margin=15)
     for r in registros:
@@ -639,11 +638,10 @@ async function sf_{fid}(){{
 # ─────────────────────────── INICIALIZAÇÃO ────────────────────────
 
 init_db()
-_favicon = Image.open(Path(__file__).parent / "favicon.png")
 st.set_page_config(
     page_title="RO - Registro de Ocorrências",
     layout="centered",
-    page_icon=_favicon,
+    page_icon="📋",
 )
 
 # Injeta favicon via HTML para sobrepor o ícone padrão do Streamlit Cloud
@@ -778,6 +776,7 @@ button[kind="primary"] *,
 
 @st.cache_resource
 def _banner_b64() -> str:
+    from PIL import Image
     p = Path(__file__).parent / "header.jpg"
     if not p.exists():
         return ""
