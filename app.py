@@ -193,6 +193,12 @@ def excluir_fiscal(fid: int) -> None:
     listar_fiscais.clear()
 
 
+def redefinir_senha_fiscal(fid: int, nova_senha: str) -> None:
+    _hash = hashlib.sha256(nova_senha.encode()).hexdigest()
+    _patch("fiscais", {"id": _eq(fid)}, {"senha": _hash})
+    listar_fiscais.clear()
+
+
 # ── unidades ──
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -1061,12 +1067,42 @@ if st.session_state.show_admin:
                             else:
                                 st.error("Informe o nome do fiscal.")
                     st.markdown("**Fiscais cadastrados**")
+                    _app_url = "https://cmugh-tubulacao.streamlit.app"
                     for fiscal in listar_fiscais(contrato_admin):
-                        c1, c2 = st.columns([4, 1])
-                        c1.write(f"{fiscal['nome']} | {fiscal.get('email') or fiscal['chave']}")
-                        if c2.button("🗑", key=f"del_f_{fiscal['id']}"):
-                            excluir_fiscal(fiscal["id"])
-                            st.rerun()
+                        _fid  = fiscal["id"]
+                        _fnome = fiscal["nome"]
+                        _femail = fiscal.get("email", "")
+                        with st.expander(f"{_fnome} | {_femail or fiscal.get('chave','')}"):
+                            # Link WhatsApp
+                            _msg = (f"Ol%C3%A1%20{_fnome.split()[0]}!%20Seu%20acesso%20ao%20app%20"
+                                    f"RO%20-%20Registro%20de%20Ocorr%C3%AAncias%3A%0A"
+                                    f"%F0%9F%94%97%20{_app_url}%0A"
+                                    f"%F0%9F%93%A7%20Login%3A%20{_femail}%0A"
+                                    f"%F0%9F%94%91%20Senha%3A%20%5Bconforme%20combinado%5D")
+                            st.markdown(
+                                f'<a href="https://wa.me/?text={_msg}" target="_blank">'
+                                f'<button style="background:#25D366;color:#fff;border:none;'
+                                f'padding:6px 14px;border-radius:6px;cursor:pointer;'
+                                f'font-weight:700;font-size:13px;">📲 Enviar link via WhatsApp</button></a>',
+                                unsafe_allow_html=True,
+                            )
+                            st.divider()
+                            # Reset senha
+                            with st.form(f"form_reset_{_fid}"):
+                                _nova = st.text_input("Nova senha", type="password", key=f"np_{_fid}")
+                                _conf = st.text_input("Confirmar senha", type="password", key=f"cp_{_fid}")
+                                _c1, _c2 = st.columns([3, 1])
+                                if _c1.form_submit_button("Redefinir senha", type="primary"):
+                                    if not _nova:
+                                        st.error("Informe a nova senha.")
+                                    elif _nova != _conf:
+                                        st.error("Senhas não conferem.")
+                                    else:
+                                        redefinir_senha_fiscal(_fid, _nova)
+                                        st.success("Senha redefinida.")
+                                if _c2.form_submit_button("🗑 Excluir"):
+                                    excluir_fiscal(_fid)
+                                    st.rerun()
 
                 # ── Unidades ──
                 with tab_u:
