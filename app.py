@@ -183,9 +183,15 @@ def adicionar_fiscal(contrato, nome, chave, disciplina, email="", senha="", celu
     listar_fiscais.clear()
 
 
-def verificar_login_fiscal(email: str, senha: str) -> dict | None:
+def verificar_login_fiscal(login: str, senha: str) -> dict | None:
     _hash = hashlib.sha256(senha.encode()).hexdigest()
-    rows = _get("fiscais", {"select": "*", "email": _eq(email), "senha": _eq(_hash)})
+    _login = login.strip()
+    _cel = re.sub(r'\D', '', _login)
+    if _cel:
+        params = {"select": "*", "or": f"(email.eq.{_login},celular.eq.{_cel})", "senha": f"eq.{_hash}"}
+    else:
+        params = {"select": "*", "email": _eq(_login), "senha": _eq(_hash)}
+    rows = _get("fiscais", params)
     return rows[0] if rows else None
 
 
@@ -897,7 +903,7 @@ if not st.session_state.user_logado:
 """, unsafe_allow_html=True)
 
     with st.form("form_login"):
-        _login_email = st.text_input("Login", placeholder="e-mail ou Admin")
+        _login_email = st.text_input("Login", placeholder="e-mail, celular ou Admin")
         _login_senha = st.text_input("Senha", type="password")
         if st.form_submit_button("ENTRAR", type="primary", use_container_width=True):
             if _verificar_admin(_login_email.strip(), _login_senha):
