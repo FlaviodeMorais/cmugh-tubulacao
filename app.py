@@ -791,6 +791,24 @@ button[kind="secondary"], button[data-testid="baseButton-secondary"] {
     border-color: #CCCCCC !important;
 }
 
+[data-testid="stFormSubmitButton"]:last-child button {
+    background-color: #CC0000 !important;
+    border-color: #CC0000 !important;
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+}
+
+/* Botao Excluir nos forms de fiscal */
+[data-testid="stFormSubmitButton"] button[kind="secondaryFormSubmit"],
+[data-testid="stFormSubmitButton"]:last-child button {
+    background-color: #CC0000 !important;
+    border-color: #CC0000 !important;
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+}
+
 /* botão primário — verde Petrobras */
 button[data-testid="baseButton-primary"],
 button[kind="primary"] {
@@ -1135,7 +1153,7 @@ if st.session_state.show_admin:
                                 _e_disc  = _ce.selectbox("Disciplina", DISCIPLINAS, index=_disc_idx, key=f"ed_{_fid}")
                                 _nova    = _cf.text_input("Nova senha", type="password", key=f"np_{_fid}")
                                 _conf    = _cg.text_input("Confirmar senha", type="password", key=f"cp_{_fid}")
-                                _cb1, _cb2 = st.columns([3, 1])
+                                _cb1, _cb2 = st.columns([1, 1])
                                 if _cb1.form_submit_button("Salvar", type="primary", use_container_width=True):
                                     if not _e_nome.strip():
                                         st.error("Nome obrigatório.")
