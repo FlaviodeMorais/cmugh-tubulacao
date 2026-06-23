@@ -1122,40 +1122,34 @@ if st.session_state.show_admin:
                                 unsafe_allow_html=True,
                             )
                             st.divider()
-                            # ── Editar dados ──
-                            with st.form(f"form_edit_{_fid}"):
-                                st.markdown("**Editar cadastro**")
-                                _e_nome  = st.text_input("Nome", value=_fnome, key=f"en_{_fid}")
-                                _e_chave = st.text_input("Chave", value=fiscal.get("chave",""), key=f"ek_{_fid}")
-                                _e_disc  = st.selectbox("Disciplina", DISCIPLINAS, key=f"ed_{_fid}",
-                                                        index=DISCIPLINAS.index(fiscal.get("disciplina", DISCIPLINAS[0]))
-                                                        if fiscal.get("disciplina") in DISCIPLINAS else 0)
-                                _e_email = st.text_input("E-mail", value=_femail, key=f"ee_{_fid}")
-                                _e_cel   = st.text_input("Celular / WhatsApp", value=_fcel, key=f"ec_{_fid}")
-                                if st.form_submit_button("Salvar alterações", type="primary"):
-                                    if _e_nome.strip():
+                            # ── Editar + Senha + Excluir ──
+                            with st.form(f"form_fiscal_{_fid}"):
+                                _disc_idx = DISCIPLINAS.index(fiscal.get("disciplina", DISCIPLINAS[0])) if fiscal.get("disciplina") in DISCIPLINAS else 0
+                                _ca, _cb = st.columns([3, 1])
+                                _e_nome  = _ca.text_input("Nome", value=_fnome, key=f"en_{_fid}")
+                                _e_chave = _cb.text_input("Chave", value=fiscal.get("chave",""), key=f"ek_{_fid}")
+                                _cc, _cd = st.columns([2, 2])
+                                _e_email = _cc.text_input("E-mail", value=_femail, key=f"ee_{_fid}")
+                                _e_cel   = _cd.text_input("Celular", value=_fcel, key=f"ec_{_fid}")
+                                _ce, _cf, _cg = st.columns([2, 1, 1])
+                                _e_disc  = _ce.selectbox("Disciplina", DISCIPLINAS, index=_disc_idx, key=f"ed_{_fid}")
+                                _nova    = _cf.text_input("Nova senha", type="password", key=f"np_{_fid}")
+                                _conf    = _cg.text_input("Confirmar senha", type="password", key=f"cp_{_fid}")
+                                _cb1, _cb2, _cb3 = st.columns([3, 2, 1])
+                                if _cb1.form_submit_button("Salvar", type="primary", use_container_width=True):
+                                    if not _e_nome.strip():
+                                        st.error("Nome obrigatório.")
+                                    else:
                                         atualizar_fiscal(_fid, _e_nome.strip(), _e_chave.strip(),
                                                          _e_disc, _e_email.strip(), _e_cel.strip())
-                                        st.success("Cadastro atualizado.")
+                                        if _nova:
+                                            if _nova != _conf:
+                                                st.error("Senhas não conferem.")
+                                            else:
+                                                redefinir_senha_fiscal(_fid, _nova)
+                                        st.success("Atualizado.")
                                         st.rerun()
-                                    else:
-                                        st.error("Nome obrigatório.")
-                            st.divider()
-                            # ── Reset senha ──
-                            with st.form(f"form_reset_{_fid}"):
-                                st.markdown("**Redefinir senha**")
-                                _nova = st.text_input("Nova senha", type="password", key=f"np_{_fid}")
-                                _conf = st.text_input("Confirmar", type="password", key=f"cp_{_fid}")
-                                _c1, _c2 = st.columns([3, 1])
-                                if _c1.form_submit_button("Redefinir senha", type="primary"):
-                                    if not _nova:
-                                        st.error("Informe a nova senha.")
-                                    elif _nova != _conf:
-                                        st.error("Senhas não conferem.")
-                                    else:
-                                        redefinir_senha_fiscal(_fid, _nova)
-                                        st.success("Senha redefinida.")
-                                if _c2.form_submit_button("🗑 Excluir fiscal"):
+                                if _cb3.form_submit_button("🗑", use_container_width=True):
                                     excluir_fiscal(_fid)
                                     st.rerun()
 
