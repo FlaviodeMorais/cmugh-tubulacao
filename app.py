@@ -798,7 +798,6 @@ button[kind="secondaryFormSubmit"] {
     color: #FFFFFF !important;
     font-weight: 700 !important;
     letter-spacing: 0.04em !important;
-    text-transform: uppercase !important;
 }
 button[kind="secondaryFormSubmit"] p,
 button[kind="secondaryFormSubmit"] span,
