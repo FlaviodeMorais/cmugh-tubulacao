@@ -175,10 +175,11 @@ def listar_fiscais(contrato: str) -> list:
     return _get("fiscais", {"select": "*", "contrato": _eq(contrato), "order": "nome.asc"})
 
 
-def adicionar_fiscal(contrato, nome, chave, disciplina, email="", senha="") -> None:
+def adicionar_fiscal(contrato, nome, chave, disciplina, email="", senha="", celular="") -> None:
     _senha_hash = hashlib.sha256(senha.encode()).hexdigest() if senha else ""
     _post("fiscais", {"contrato": contrato, "nome": nome, "chave": chave,
-                      "disciplina": disciplina, "email": email, "senha": _senha_hash})
+                      "disciplina": disciplina, "email": email, "senha": _senha_hash,
+                      "celular": celular})
     listar_fiscais.clear()
 
 
@@ -1056,12 +1057,14 @@ if st.session_state.show_admin:
                         f_chave = st.text_input("Chave")
                         f_disc  = st.selectbox("Disciplina", DISCIPLINAS, key="disc_fiscal")
                         f_email = st.text_input("E-mail do Fiscal")
+                        f_cel   = st.text_input("Celular / WhatsApp", placeholder="19 98263-3441")
                         f_senha = st.text_input("Senha de acesso", type="password",
                                                 help="Senha que o fiscal usará para entrar no app")
                         if st.form_submit_button("Adicionar", type="primary"):
                             if f_nome.strip():
                                 adicionar_fiscal(contrato_admin, f_nome.strip(),
-                                                 f_chave.strip(), f_disc, f_email.strip(), f_senha)
+                                                 f_chave.strip(), f_disc, f_email.strip(), f_senha,
+                                                 re.sub(r'\D', '', f_cel))
                                 st.success("Fiscal adicionado.")
                                 st.rerun()
                             else:
@@ -1069,9 +1072,10 @@ if st.session_state.show_admin:
                     st.markdown("**Fiscais cadastrados**")
                     _app_url = "https://cmugh-tubulacao.streamlit.app"
                     for fiscal in listar_fiscais(contrato_admin):
-                        _fid  = fiscal["id"]
-                        _fnome = fiscal["nome"]
+                        _fid    = fiscal["id"]
+                        _fnome  = fiscal["nome"]
                         _femail = fiscal.get("email", "")
+                        _fcel   = re.sub(r'\D', '', fiscal.get("celular", ""))
                         with st.expander(f"{_fnome} | {_femail or fiscal.get('chave','')}"):
                             # Link WhatsApp
                             _msg = (f"Ol%C3%A1%20{_fnome.split()[0]}!%20Seu%20acesso%20ao%20app%20"
@@ -1079,11 +1083,17 @@ if st.session_state.show_admin:
                                     f"%F0%9F%94%97%20{_app_url}%0A"
                                     f"%F0%9F%93%A7%20Login%3A%20{_femail}%0A"
                                     f"%F0%9F%94%91%20Senha%3A%20%5Bconforme%20combinado%5D")
+                            # Se tem celular, abre chat direto; senão abre seletor
+                            _numero = f"55{_fcel}" if _fcel else ""
+                            _wa_href = f"https://wa.me/{_numero}?text={_msg}"
+                            _wa_label = "📲 Enviar direto no WhatsApp" if _fcel else "📲 Enviar link via WhatsApp"
+                            if not _fcel:
+                                st.caption("⚠️ Sem celular cadastrado — abrirá seletor de contato.")
                             st.markdown(
-                                f'<a href="https://wa.me/?text={_msg}" target="_blank">'
+                                f'<a href="{_wa_href}" target="_blank">'
                                 f'<button style="background:#25D366;color:#fff;border:none;'
                                 f'padding:6px 14px;border-radius:6px;cursor:pointer;'
-                                f'font-weight:700;font-size:13px;">📲 Enviar link via WhatsApp</button></a>',
+                                f'font-weight:700;font-size:13px;">{_wa_label}</button></a>',
                                 unsafe_allow_html=True,
                             )
                             st.divider()
