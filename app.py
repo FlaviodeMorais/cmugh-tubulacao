@@ -791,13 +791,20 @@ button[kind="secondary"], button[data-testid="baseButton-secondary"] {
     border-color: #CCCCCC !important;
 }
 
-/* Botao Excluir (secundario) nos forms de fiscal */
-[data-testid="stFormSubmitButton"] button[data-testid="baseButton-secondary"] {
+/* Botao Excluir nos forms de fiscal */
+button[kind="secondaryFormSubmit"] {
     background-color: #CC0000 !important;
     border-color: #CC0000 !important;
     color: #FFFFFF !important;
     font-weight: 700 !important;
     letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+}
+button[kind="secondaryFormSubmit"] p,
+button[kind="secondaryFormSubmit"] span,
+button[kind="secondaryFormSubmit"] * {
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
 }
 
 /* botão primário — verde Petrobras */
