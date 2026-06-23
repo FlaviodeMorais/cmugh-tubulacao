@@ -791,17 +791,8 @@ button[kind="secondary"], button[data-testid="baseButton-secondary"] {
     border-color: #CCCCCC !important;
 }
 
-[data-testid="stFormSubmitButton"]:last-child button {
-    background-color: #CC0000 !important;
-    border-color: #CC0000 !important;
-    color: #FFFFFF !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.04em !important;
-}
-
-/* Botao Excluir nos forms de fiscal */
-[data-testid="stFormSubmitButton"] button[kind="secondaryFormSubmit"],
-[data-testid="stFormSubmitButton"]:last-child button {
+/* Botao Excluir (secundario) nos forms de fiscal */
+[data-testid="stFormSubmitButton"] button[data-testid="baseButton-secondary"] {
     background-color: #CC0000 !important;
     border-color: #CC0000 !important;
     color: #FFFFFF !important;
@@ -1146,7 +1137,7 @@ if st.session_state.show_admin:
                                 _ca, _cb = st.columns([3, 1])
                                 _e_nome  = _ca.text_input("Nome", value=_fnome, key=f"en_{_fid}")
                                 _e_chave = _cb.text_input("Chave", value=fiscal.get("chave",""), key=f"ek_{_fid}")
-                                _cc, _cd = st.columns([2, 2])
+                                _cc, _cd = st.columns([4, 1])
                                 _e_email = _cc.text_input("E-mail", value=_femail, key=f"ee_{_fid}")
                                 _e_cel   = _cd.text_input("Celular", value=_fcel, key=f"ec_{_fid}")
                                 _ce, _cf, _cg = st.columns([2, 1, 1])
