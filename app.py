@@ -1095,7 +1095,7 @@ if st.session_state.show_admin:
                             _msg = (f"Ol%C3%A1%20{_fnome.split()[0]}!%20Seu%20acesso%20ao%20app%20"
                                     f"RO%20-%20Registro%20de%20Ocorr%C3%AAncias%3A%0A"
                                     f"%F0%9F%94%97%20{_app_url}%0A"
-                                    f"%F0%9F%93%A7%20Login%3A%20{_femail or _fcel}%0A"
+                                    f"%F0%9F%93%A7%20Login%3A%20{_fcel}%0A"
                                     f"%F0%9F%94%91%20Senha%3A%20%5Bconforme%20combinado%5D")
                             _numero  = f"55{_fcel}" if _fcel else ""
                             _wa_href = f"https://wa.me/{_numero}?text={_msg}"
