@@ -22,6 +22,13 @@ def _verificar_admin(usuario: str, senha: str) -> bool:
     return bool(_user and usuario == _user and
                 hashlib.sha256(senha.encode()).hexdigest() == _hash)
 
+def _cel_norm(cel: str) -> str:
+    d = re.sub(r'\D', '', cel)
+    if len(d) >= 12 and d.startswith('55'):
+        d = d[2:]
+    return d
+
+
 DISCIPLINAS = [
     "Tubulação", "Dinâmicos", "Estáticos", "Civil", "Estruturas Metálicas",
     "Elétrica", "Instrumentação", "Telecom", "Automação", "HVAC",
@@ -186,7 +193,7 @@ def adicionar_fiscal(contrato, nome, chave, disciplina, email="", senha="", celu
 def verificar_login_fiscal(login: str, senha: str) -> dict | None:
     _hash = hashlib.sha256(senha.encode()).hexdigest()
     _login = login.strip()
-    _cel = re.sub(r'\D', '', _login)
+    _cel = _cel_norm(_login)
     if _cel:
         params = {"select": "*", "or": f"(email.eq.{_login},celular.eq.{_cel})", "senha": f"eq.{_hash}"}
     else:
@@ -209,7 +216,7 @@ def redefinir_senha_fiscal(fid: int, nova_senha: str) -> None:
 def atualizar_fiscal(fid: int, nome: str, chave: str, disciplina: str, email: str, celular: str) -> None:
     _patch("fiscais", {"id": _eq(fid)}, {
         "nome": nome, "chave": chave, "disciplina": disciplina,
-        "email": email, "celular": re.sub(r'\D', '', celular),
+        "email": email, "celular": _cel_norm(celular),
     })
     listar_fiscais.clear()
 
@@ -1078,7 +1085,7 @@ if st.session_state.show_admin:
                             if f_nome.strip():
                                 adicionar_fiscal(contrato_admin, f_nome.strip(),
                                                  f_chave.strip(), f_disc, f_email.strip(), f_senha,
-                                                 re.sub(r'\D', '', f_cel))
+                                                 _cel_norm(f_cel))
                                 st.success("Fiscal adicionado.")
                                 st.rerun()
                             else:
@@ -1089,15 +1096,19 @@ if st.session_state.show_admin:
                         _fid    = fiscal["id"]
                         _fnome  = fiscal["nome"]
                         _femail = fiscal.get("email", "")
-                        _fcel   = re.sub(r'\D', '', fiscal.get("celular", ""))
+                        _fcel   = _cel_norm(fiscal.get("celular", ""))
                         _fsenha = fiscal.get("senha_plain", "")
                         with st.expander(f"{_fnome} | {_femail or fiscal.get('chave','')}"):
                             # ── WhatsApp ──
-                            _msg = (f"Ol%C3%A1%20{_fnome.split()[0]}!%20Seu%20acesso%20ao%20app%20"
-                                    f"RO%20-%20Registro%20de%20Ocorr%C3%AAncias%3A%0A"
-                                    f"%F0%9F%94%97%20{_app_url}%0A"
-                                    f"%F0%9F%93%A7%20Login%3A%20{_fcel}%0A"
-                                    f"%F0%9F%94%91%20Senha%3A%20{_fsenha or '%5Bconforme%20combinado%5D'}")
+                            _senha_msg = _fsenha or '[conforme combinado]'
+                            import urllib.parse
+                            _msg = urllib.parse.quote(
+                                f"Ola {_fnome.split()[0]}! Seu acesso ao app RO - Registro de Ocorrencias:\n"
+                                f"Link: {_app_url}\n"
+                                f"Login: {_fcel}\n"
+                                f"Senha: {_senha_msg}",
+                                safe=""
+                            )
                             _numero  = f"55{_fcel}" if _fcel else ""
                             _wa_href = f"https://wa.me/{_numero}?text={_msg}"
                             _wa_lbl  = "📲 Enviar direto no WhatsApp" if _fcel else "📲 Enviar link via WhatsApp"
