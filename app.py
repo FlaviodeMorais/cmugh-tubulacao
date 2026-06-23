@@ -179,7 +179,7 @@ def adicionar_fiscal(contrato, nome, chave, disciplina, email="", senha="", celu
     _senha_hash = hashlib.sha256(senha.encode()).hexdigest() if senha else ""
     _post("fiscais", {"contrato": contrato, "nome": nome, "chave": chave,
                       "disciplina": disciplina, "email": email, "senha": _senha_hash,
-                      "celular": celular})
+                      "senha_plain": senha, "celular": celular})
     listar_fiscais.clear()
 
 
@@ -202,7 +202,7 @@ def excluir_fiscal(fid: int) -> None:
 
 def redefinir_senha_fiscal(fid: int, nova_senha: str) -> None:
     _hash = hashlib.sha256(nova_senha.encode()).hexdigest()
-    _patch("fiscais", {"id": _eq(fid)}, {"senha": _hash})
+    _patch("fiscais", {"id": _eq(fid)}, {"senha": _hash, "senha_plain": nova_senha})
     listar_fiscais.clear()
 
 
@@ -1090,13 +1090,14 @@ if st.session_state.show_admin:
                         _fnome  = fiscal["nome"]
                         _femail = fiscal.get("email", "")
                         _fcel   = re.sub(r'\D', '', fiscal.get("celular", ""))
+                        _fsenha = fiscal.get("senha_plain", "")
                         with st.expander(f"{_fnome} | {_femail or fiscal.get('chave','')}"):
                             # ── WhatsApp ──
                             _msg = (f"Ol%C3%A1%20{_fnome.split()[0]}!%20Seu%20acesso%20ao%20app%20"
                                     f"RO%20-%20Registro%20de%20Ocorr%C3%AAncias%3A%0A"
                                     f"%F0%9F%94%97%20{_app_url}%0A"
                                     f"%F0%9F%93%A7%20Login%3A%20{_fcel}%0A"
-                                    f"%F0%9F%94%91%20Senha%3A%20%5Bconforme%20combinado%5D")
+                                    f"%F0%9F%94%91%20Senha%3A%20{_fsenha or '%5Bconforme%20combinado%5D'}")
                             _numero  = f"55{_fcel}" if _fcel else ""
                             _wa_href = f"https://wa.me/{_numero}?text={_msg}"
                             _wa_lbl  = "📲 Enviar direto no WhatsApp" if _fcel else "📲 Enviar link via WhatsApp"
