@@ -1135,7 +1135,7 @@ if st.session_state.show_admin:
                                 _e_disc  = _ce.selectbox("Disciplina", DISCIPLINAS, index=_disc_idx, key=f"ed_{_fid}")
                                 _nova    = _cf.text_input("Nova senha", type="password", key=f"np_{_fid}")
                                 _conf    = _cg.text_input("Confirmar senha", type="password", key=f"cp_{_fid}")
-                                _cb1, _cb2, _cb3 = st.columns([3, 2, 1])
+                                _cb1, _cb2 = st.columns([3, 1])
                                 if _cb1.form_submit_button("Salvar", type="primary", use_container_width=True):
                                     if not _e_nome.strip():
                                         st.error("Nome obrigatório.")
@@ -1149,7 +1149,7 @@ if st.session_state.show_admin:
                                                 redefinir_senha_fiscal(_fid, _nova)
                                         st.success("Atualizado.")
                                         st.rerun()
-                                if _cb3.form_submit_button("🗑", use_container_width=True):
+                                if _cb2.form_submit_button("Excluir", use_container_width=True):
                                     excluir_fiscal(_fid)
                                     st.rerun()
 
