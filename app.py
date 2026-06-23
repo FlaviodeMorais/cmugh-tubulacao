@@ -206,6 +206,14 @@ def redefinir_senha_fiscal(fid: int, nova_senha: str) -> None:
     listar_fiscais.clear()
 
 
+def atualizar_fiscal(fid: int, nome: str, chave: str, disciplina: str, email: str, celular: str) -> None:
+    _patch("fiscais", {"id": _eq(fid)}, {
+        "nome": nome, "chave": chave, "disciplina": disciplina,
+        "email": email, "celular": re.sub(r'\D', '', celular),
+    })
+    listar_fiscais.clear()
+
+
 # ── unidades ──
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -1083,30 +1091,49 @@ if st.session_state.show_admin:
                         _femail = fiscal.get("email", "")
                         _fcel   = re.sub(r'\D', '', fiscal.get("celular", ""))
                         with st.expander(f"{_fnome} | {_femail or fiscal.get('chave','')}"):
-                            # Link WhatsApp
+                            # ── WhatsApp ──
                             _msg = (f"Ol%C3%A1%20{_fnome.split()[0]}!%20Seu%20acesso%20ao%20app%20"
                                     f"RO%20-%20Registro%20de%20Ocorr%C3%AAncias%3A%0A"
                                     f"%F0%9F%94%97%20{_app_url}%0A"
-                                    f"%F0%9F%93%A7%20Login%3A%20{_femail}%0A"
+                                    f"%F0%9F%93%A7%20Login%3A%20{_femail or _fcel}%0A"
                                     f"%F0%9F%94%91%20Senha%3A%20%5Bconforme%20combinado%5D")
-                            # Se tem celular, abre chat direto; senão abre seletor
-                            _numero = f"55{_fcel}" if _fcel else ""
+                            _numero  = f"55{_fcel}" if _fcel else ""
                             _wa_href = f"https://wa.me/{_numero}?text={_msg}"
-                            _wa_label = "📲 Enviar direto no WhatsApp" if _fcel else "📲 Enviar link via WhatsApp"
+                            _wa_lbl  = "📲 Enviar direto no WhatsApp" if _fcel else "📲 Enviar link via WhatsApp"
                             if not _fcel:
                                 st.caption("⚠️ Sem celular cadastrado — abrirá seletor de contato.")
                             st.markdown(
                                 f'<a href="{_wa_href}" target="_blank">'
                                 f'<button style="background:#25D366;color:#fff;border:none;'
                                 f'padding:6px 14px;border-radius:6px;cursor:pointer;'
-                                f'font-weight:700;font-size:13px;">{_wa_label}</button></a>',
+                                f'font-weight:700;font-size:13px;">{_wa_lbl}</button></a>',
                                 unsafe_allow_html=True,
                             )
                             st.divider()
-                            # Reset senha
+                            # ── Editar dados ──
+                            with st.form(f"form_edit_{_fid}"):
+                                st.markdown("**Editar cadastro**")
+                                _e_nome  = st.text_input("Nome", value=_fnome, key=f"en_{_fid}")
+                                _e_chave = st.text_input("Chave", value=fiscal.get("chave",""), key=f"ek_{_fid}")
+                                _e_disc  = st.selectbox("Disciplina", DISCIPLINAS, key=f"ed_{_fid}",
+                                                        index=DISCIPLINAS.index(fiscal.get("disciplina", DISCIPLINAS[0]))
+                                                        if fiscal.get("disciplina") in DISCIPLINAS else 0)
+                                _e_email = st.text_input("E-mail", value=_femail, key=f"ee_{_fid}")
+                                _e_cel   = st.text_input("Celular / WhatsApp", value=_fcel, key=f"ec_{_fid}")
+                                if st.form_submit_button("Salvar alterações", type="primary"):
+                                    if _e_nome.strip():
+                                        atualizar_fiscal(_fid, _e_nome.strip(), _e_chave.strip(),
+                                                         _e_disc, _e_email.strip(), _e_cel.strip())
+                                        st.success("Cadastro atualizado.")
+                                        st.rerun()
+                                    else:
+                                        st.error("Nome obrigatório.")
+                            st.divider()
+                            # ── Reset senha ──
                             with st.form(f"form_reset_{_fid}"):
+                                st.markdown("**Redefinir senha**")
                                 _nova = st.text_input("Nova senha", type="password", key=f"np_{_fid}")
-                                _conf = st.text_input("Confirmar senha", type="password", key=f"cp_{_fid}")
+                                _conf = st.text_input("Confirmar", type="password", key=f"cp_{_fid}")
                                 _c1, _c2 = st.columns([3, 1])
                                 if _c1.form_submit_button("Redefinir senha", type="primary"):
                                     if not _nova:
@@ -1116,7 +1143,7 @@ if st.session_state.show_admin:
                                     else:
                                         redefinir_senha_fiscal(_fid, _nova)
                                         st.success("Senha redefinida.")
-                                if _c2.form_submit_button("🗑 Excluir"):
+                                if _c2.form_submit_button("🗑 Excluir fiscal"):
                                     excluir_fiscal(_fid)
                                     st.rerun()
 
